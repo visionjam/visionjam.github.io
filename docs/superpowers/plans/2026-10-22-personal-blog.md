@@ -379,7 +379,7 @@ Expected: 退出码 0，无 ERROR。
 - [ ] **Step 3: 验证定制样式已合并**
 
 ```bash
-grep -l 'Hiragino Sans GB' public/assets/css/stylesheet.*.css
+grep -il 'hiragino sans gb' public/assets/css/stylesheet.*.css
 ```
 
 Expected: 输出至少一个 `public/assets/css/stylesheet.<hash>.css` 路径。
