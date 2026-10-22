@@ -76,3 +76,28 @@ body {
     padding-bottom: 6px;
   }
 }
+
+/* GitHub 贡献图：metrics 生成的 SVG 是浅色样式，统一放在白色卡片里 */
+.github-metrics {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* 评论区 */
+.comments {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.comments h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}

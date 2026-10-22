@@ -59,6 +59,12 @@ params:
   ShowToc: true
   TocOpen: false
   ShowWordCount: false
+  comments: true
+  giscus:
+    repo: "visionjam/visionjam.github.io"
+    repoId: "R_kgDORwkB7A"
+    category: "Announcements"
+    categoryId: "DIC_kwDORwkB7M4DJVqS"
   homeInfoParams:
     Title: "你好，我是 VisionJam"
     Content: "记录思考、技术与生活。这里会不定期更新文章。"
