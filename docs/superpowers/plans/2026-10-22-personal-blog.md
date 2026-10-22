@@ -140,6 +140,7 @@ params:
   env: production
   description: "VisionJam 的个人博客，记录思考、技术与生活。"
   author: "VisionJam"
+  DateFormat: "2006-01-02"
   mainSections:
     - posts
   defaultTheme: auto
@@ -365,6 +366,24 @@ body {
 :root[data-theme="dark"] .post-tags a,
 :root[data-theme="dark"] .terms-tags a {
   color: #8fb8da;
+}
+
+/* 移动端：导航换行，避免横向滚动 */
+@media screen and (max-width: 600px) {
+  .header-nav {
+    flex-wrap: wrap;
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-x: visible;
+    column-gap: var(--gap);
+    row-gap: 0.25rem;
+    line-height: 1.8;
+    padding-bottom: 6px;
+  }
 }
 ```
 
