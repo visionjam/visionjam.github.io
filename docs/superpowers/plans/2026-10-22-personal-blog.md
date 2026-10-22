@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 界面文案与示例内容使用简体中文；命令、配置键、代码保留英文。
-- `baseURL: "https://visionjam.github.io/"`，`defaultContentLanguage: "zh"`，`languageCode: "zh-cn"`。
+- `baseURL: "https://visionjam.github.io/"`，`defaultContentLanguage: "zh"`，`locale: "zh-cn"`。
 - 不引入外部字体或 CDN；不添加评论、统计、分享按钮。
 - 不提交 `public/`、`resources/_gen/`、`.hugo_build.lock`，不提交工作区里的两张 `Snipaste_*.png`。
 - 每个任务结束后在本地 `main` 提交一次；**未获得用户具名确认前，不得执行 `git push`**。
@@ -96,7 +96,7 @@ Expected: 输出 `969bebdc5600a1639158b5ef4eff9cf6cbb511ac`。
 ```yaml
 baseURL: "https://visionjam.github.io/"
 title: "VisionJam"
-languageCode: "zh-cn"
+locale: "zh-cn"
 defaultContentLanguage: "zh"
 theme: ["PaperMod"]
 
@@ -274,14 +274,14 @@ Expected: 8 行全部为 `OK`。
 - [ ] **Step 11: 验证中文与菜单**
 
 ```bash
-grep -o 'lang="zh-cn"' public/index.html | head -1
+grep -o 'lang="zh"' public/index.html | head -1
 ```
 
 ```bash
 grep -q '文章' public/index.html && grep -q '关于' public/index.html && echo "MENU ZH OK"
 ```
 
-Expected: 第一行输出 `lang="zh-cn"`；第二行输出 `MENU ZH OK`。
+Expected: 第一行输出 `lang="zh"`；第二行输出 `MENU ZH OK`。
 
 - [ ] **Step 12: 提交**
 
