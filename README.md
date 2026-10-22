@@ -41,6 +41,11 @@ python3 tools/blog.py publish
 - 隐私扫描覆盖文本文件中的本机路径、代理地址、密钥、手机号等；图片内容仍需自行确认。
 - 工具测试：`python3 tools/test_blog.py`。
 
+## 评论与 GitHub 贡献
+
+- 文章页评论使用 [Giscus](https://giscus.app/)，需要 GitHub 登录；评论存储在 GitHub Discussions。
+- About 页的 GitHub 贡献日历由 [lowlighter/metrics](https://github.com/lowlighter/metrics) 在 GitHub Actions 构建时生成，每天自动刷新。
+
 ## 写一篇新文章（手动方式）
 
 ```bash
@@ -97,6 +102,10 @@ content/
 tools/
   blog.py         写作与发布工具
   test_blog.py    工具测试
+layouts/
+  _partials/comments.html          Giscus 评论
+  _shortcodes/github-metrics.html  About 贡献图
+static/                              CI 生成的贡献 SVG（本地通常为空）
 new-post.bat / publish.bat       Windows 双击入口
 new-post.sh / publish.sh         Linux 入口
 hugo.yml          站点配置
