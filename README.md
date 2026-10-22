@@ -9,6 +9,7 @@
 
 - Hugo Extended（>= 0.158.0）
 - Git
+- Python 3.8+（一键写作/发布工具）
 
 Windows 安装 Hugo：
 
@@ -22,7 +23,25 @@ winget install --id Hugo.Hugo.Extended -e
 git submodule update --init --recursive
 ```
 
-## 写一篇新文章
+## 一键写作与发布（推荐）
+
+Windows 双击 `new-post.bat` / `publish.bat`；Linux 运行 `./new-post.sh` / `./publish.sh`。
+
+也可以在终端直接使用：
+
+```bash
+python3 tools/blog.py new
+python3 tools/blog.py publish
+```
+
+- `new`：创建 `content/posts/<英文短名>/index.md`，自动填好标题和日期。
+- `publish`：检测草稿、本地构建、隐私扫描、列出改动，按 `Y` 确认后只提交 `content/` 并推送到 `main`。
+- 只检查不推送：`python3 tools/blog.py publish --dry-run`。
+- 没装 Hugo 或不是 extended 版时，脚本会跳过本地构建并提示；GitHub Actions 仍会构建。
+- 隐私扫描覆盖文本文件中的本机路径、代理地址、密钥、手机号等；图片内容仍需自行确认。
+- 工具测试：`python3 tools/test_blog.py`。
+
+## 写一篇新文章（手动方式）
 
 ```bash
 hugo new content posts/文章英文名/index.md
@@ -57,8 +76,10 @@ hugo server -D
 
 ## 发布
 
+推荐使用上面的 `publish.bat` / `publish.sh`。手动方式：
+
 ```bash
-git add .
+git add content
 git commit -m "post: 文章标题"
 git push
 ```
@@ -73,10 +94,16 @@ content/
   about.md        关于页
   archives.md     归档页
   search.md       搜索页
+tools/
+  blog.py         写作与发布工具
+  test_blog.py    工具测试
+new-post.bat / publish.bat       Windows 双击入口
+new-post.sh / publish.sh         Linux 入口
 hugo.yml          站点配置
 assets/css/extended/custom.css   视觉定制
 .github/workflows/hugo.yml       自动部署
 themes/PaperMod   主题（git submodule，固定版本）
+.gitattributes    跨平台换行符规则
 ```
 
 ## 主题升级
@@ -92,3 +119,6 @@ git submodule update --remote themes/PaperMod
 - **推送到 main 后没有更新**：查看仓库 Actions 页面；确认 Settings → Pages → Source 为 “GitHub Actions”。
 - **本地 hugo 命令找不到**：重新打开终端，或确认 Hugo 已加入 PATH。
 - **文章没显示**：检查 `draft` 是否为 `false`、日期是否为未来时间。
+- **`python3: command not found`**：安装 Python 3.8+，或把 Python 加入 PATH。
+- **`publish.sh: Permission denied`**：运行 `bash publish.sh`，或 `chmod +x publish.sh`。
+- **双击 `.bat` 没有反应**：在终端运行 `python tools/blog.py publish` 查看具体错误。
