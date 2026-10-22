@@ -43,11 +43,21 @@ jobs:
           template: classic
           base: ""
           config_timezone: Asia/Shanghai
-          plugin_isocalendar: yes
-          plugin_isocalendar_duration: full-year
+          plugin_calendar: yes
+          plugin_calendar_limit: 1
           filename: static/github-metrics.svg
           output_action: none
           config_output: svg
+
+      - name: Copy metrics SVG
+        run: |
+          if [ -f /metrics_renders/static/github-metrics.svg ]; then
+            mkdir -p static
+            cp /metrics_renders/static/github-metrics.svg static/github-metrics.svg
+            echo "metrics SVG copied"
+          else
+            echo "metrics SVG not found; About page will show the fallback link"
+          fi
 
       - name: Build with Hugo
         run: hugo --minify --gc
