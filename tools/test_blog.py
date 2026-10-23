@@ -2,6 +2,7 @@ import argparse
 import contextlib
 import datetime as dt
 import io
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -437,6 +438,99 @@ class PublishFlowTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("draft: true", draft.read_text(encoding="utf-8"))
         self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), before)
+
+
+class SiteBuildTests(unittest.TestCase):
+    root = Path(__file__).resolve().parents[1]
+
+    @classmethod
+    def setUpClass(cls):
+        if shutil.which("hugo") is None:
+            raise unittest.SkipTest("未安装 hugo")
+
+    @classmethod
+    def build(cls, destination):
+        subprocess.run(
+            [
+                "hugo",
+                "--source",
+                str(cls.root),
+                "--destination",
+                str(destination),
+                "--quiet",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+    def test_home_caps_latest_posts_and_links_to_all(self):
+        created = []
+        try:
+            for i in range(21):
+                bundle = self.root / "content" / "posts" / f"_sitetest-{i:02d}"
+                bundle.mkdir(parents=True)
+                if i == 0:
+                    title = "SITETEST-OLDEST"
+                elif i == 20:
+                    title = "SITETEST-NEWEST"
+                else:
+                    title = f"SITETEST-{i:02d}"
+                (bundle / "index.md").write_text(
+                    f'---\ntitle: "{title}"\n'
+                    f"date: 2026-10-22T{i + 1:02d}:00:00+08:00\n"
+                    "draft: false\n---\n\n正文\n",
+                    encoding="utf-8",
+                )
+                created.append(bundle)
+
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                home = (Path(tmp) / "public" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+            self.assertEqual(home.count('class="post-entry"'), 20)
+            self.assertIn("SITETEST-NEWEST", home)
+            self.assertNotIn("SITETEST-OLDEST", home)
+            self.assertIn("查看全部文章", home)
+            self.assertIn('href="/posts/"', home)
+            self.assertNotIn("type-tabs", home)
+        finally:
+            for bundle in reversed(created):
+                shutil.rmtree(bundle, ignore_errors=True)
+
+    def test_home_shows_pinned_items_before_latest(self):
+        data = self.root / "data" / "pinned.yml"
+        backup = data.read_bytes() if data.exists() else None
+        data.parent.mkdir(parents=True, exist_ok=True)
+        data.write_text(
+            "items:\n"
+            '  - title: "SITETEST-PINNED"\n'
+            '    url: "/posts/hello-world/"\n'
+            '    description: "SITETEST-DESC"\n',
+            encoding="utf-8",
+        )
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                home = (Path(tmp) / "public" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+            self.assertIn("SITETEST-PINNED", home)
+            self.assertIn("SITETEST-DESC", home)
+            self.assertIn('href="/posts/hello-world/"', home)
+            self.assertLess(
+                home.index("SITETEST-PINNED"), home.index("最新文章")
+            )
+        finally:
+            if backup is None:
+                data.unlink()
+            else:
+                data.write_bytes(backup)
 
 
 if __name__ == "__main__":

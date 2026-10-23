@@ -47,6 +47,7 @@ params:
   DateFormat: "2006-01-02"
   mainSections:
     - posts
+  homeLimit: 20
   defaultTheme: auto
   ShowReadingTime: true
   ShowShareButtons: false

@@ -5,6 +5,12 @@
 - 线上地址：https://visionjam.github.io
 - 写作方式：Markdown（`content/posts/`）
 
+## 主页结构
+
+- 主页从上到下为：站点简介、置顶、最新 20 篇文章。
+- 置顶在 `data/pinned.yml` 中维护，按文件顺序显示，支持站内路径与外部链接。
+- 「文章」页（`/posts/`）保留全部分页列表；文章超过 20 篇时，主页底部显示「查看全部文章」。
+
 ## 本地环境
 
 - Hugo Extended（>= 0.158.0）
@@ -101,8 +107,11 @@ content/
   search.md       搜索页
 tools/
   blog.py         写作与发布工具
-  test_blog.py    工具测试
+  test_blog.py    工具与站点构建测试
+data/
+  pinned.yml      主页置顶清单
 layouts/
+  list.html       主页与列表页布局覆盖
   _partials/comments.html          Giscus 评论
   _shortcodes/github-metrics.html  About 贡献图
 static/                              CI 生成的贡献 SVG（本地通常为空）
