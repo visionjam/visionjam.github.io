@@ -7,6 +7,6 @@
 #   - title: "博客注意事项"
 #     url: "https://example.com/notice"
 items:
-  - title: "Android 优化体验指南（专栏）"
-    url: "/android-guide/"
-    description: "5 篇系列：优化观与体检、系统设置与隐私、后台省电与存储、adb/Shizuku、推荐指南"
+  - title: "你好，世界"
+    url: "/posts/hello-world/"
+    description: "本站的第一篇文章：为什么开始写博客，以及这里会写些什么。"
