@@ -596,10 +596,13 @@ class SiteBuildTests(unittest.TestCase):
         if not match:
             self.fail("hugo.yml 缺少 mainSections")
         sections = re.findall(r"(?m)^    - (\S+)$", match.group(1))
-        return sum(
-            len(list((self.root / "content" / section).glob("*/index.md")))
-            for section in sections
-        )
+        # draft: true 不进入生产构建，也不应计入首页统计。
+        count = 0
+        for section in sections:
+            for index in (self.root / "content" / section).glob("*/index.md"):
+                if not blog.is_draft(index.read_text(encoding="utf-8")):
+                    count += 1
+        return count
 
     def test_about_page_has_common_links_and_contributions(self):
         with tempfile.TemporaryDirectory() as tmp:
