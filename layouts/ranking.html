@@ -31,7 +31,7 @@
 <ol class="ranking-list">
   {{- range $index, $entry := $entries }}
   {{- $page := $entry.page }}
-  <li class="ranking-item{{ if lt $index 3 }} rank-top{{ end }}">
+  <li class="ranking-item">
     <span class="rank">{{ add $index 1 }}</span>
     <div class="rank-main">
       <a class="rank-title" href="{{ $page.RelPermalink }}">{{ $page.Title }}</a>

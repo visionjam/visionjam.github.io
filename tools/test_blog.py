@@ -679,6 +679,7 @@ class SiteBuildTests(unittest.TestCase):
                 ranking.index("TABTEST-LIKE-A"), ranking.index("TABTEST-LIKE-B")
             )
             self.assertIn("站内赞 5", ranking)
+            self.assertNotIn("rank-top", ranking)
         finally:
             for bundle in reversed(created):
                 shutil.rmtree(bundle, ignore_errors=True)
