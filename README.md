@@ -11,7 +11,7 @@
 - 置顶在 `data/pinned.yml` 中维护，按文件顺序显示，支持站内路径与外部链接。
 - 「文章」页（`/posts/`）保留全部分页列表；文章超过 20 篇时，主页底部显示「查看全部文章」。
 - 「排行」页（`/ranking/`）按站内点赞数排序，可按标签筛选，并显示全站统计条。
-- 文章标题下显示中文字数、预计阅读时长和站内赞数。
+- 文章标题下显示发布日期、最后编辑日期（仅当与发布日期不同）、中文字数、预计阅读时长和站内赞数。最后编辑日期自动取自文章文件的最后一次 Git 提交，无需手动维护。
 
 ## 本地环境
 
@@ -73,7 +73,8 @@ hugo new content posts/文章英文名/index.md
 | 字段 | 说明 |
 |---|---|
 | title | 标题 |
-| date | 日期，YYYY-MM-DD |
+| date | 发布日期，YYYY-MM-DD |
+| lastmod | 可选，最后编辑日期；不填则自动取 Git 最后提交日期 |
 | draft | 是否为草稿 |
 | tags | 标签数组 |
 | summary | 摘要，用于列表和 SEO |
@@ -122,9 +123,10 @@ data/
   likes.json      站内赞快照（CI 构建前自动刷新）
 layouts/
   list.html       主页与列表页布局覆盖
+  single.html     单页布局覆盖（传入日期标签开关）
   ranking.html    站内赞排行页
   _partials/comments.html          Giscus 评论/点赞
-  _partials/post_meta.html         中文字数、阅读时长、站内赞
+  _partials/post_meta.html         发布日期/最后编辑、字数、阅读时长、站内赞
   _partials/site_stats.html        全站统计条
   _shortcodes/github-metrics.html  About 贡献图
 static/                              CI 生成的贡献 SVG（本地通常为空）

@@ -737,6 +737,43 @@ class SiteBuildTests(unittest.TestCase):
             else:
                 likes_path.write_bytes(backup)
 
+    def test_single_shows_publish_and_edit_dates(self):
+        created = []
+        try:
+            for slug, title, lastmod in (
+                ("_date-edited", "SITETEST-EDITED", "2026-10-23"),
+                ("_date-plain", "SITETEST-PLAIN", None),
+            ):
+                bundle = self.root / "content" / "posts" / slug
+                bundle.mkdir(parents=True)
+                lastmod_line = f"lastmod: {lastmod}\n" if lastmod else ""
+                (bundle / "index.md").write_text(
+                    f'---\ntitle: "{title}"\ndate: 2026-10-20\n'
+                    f"{lastmod_line}draft: false\n---\n\n正文\n",
+                    encoding="utf-8",
+                )
+                created.append(bundle)
+
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                public = Path(tmp) / "public"
+                edited = (public / "posts" / "_date-edited" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+                plain = (public / "posts" / "_date-plain" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+                home = (public / "index.html").read_text(encoding="utf-8")
+
+            self.assertIn("发布于 2026-10-20", edited)
+            self.assertIn("最后编辑于 2026-10-23", edited)
+            self.assertIn("发布于 2026-10-20", plain)
+            self.assertNotIn("最后编辑于", plain)
+            self.assertNotIn("发布于", home)
+        finally:
+            for bundle in reversed(created):
+                shutil.rmtree(bundle, ignore_errors=True)
+
     def test_home_shows_pinned_items_before_latest(self):
         data = self.root / "data" / "pinned.yml"
         backup = data.read_bytes() if data.exists() else None

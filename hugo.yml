@@ -5,6 +5,7 @@ defaultContentLanguage: "zh"
 theme: ["PaperMod"]
 
 enableRobotsTXT: true
+enableGitInfo: true
 buildDrafts: false
 buildFuture: false
 buildExpired: false
