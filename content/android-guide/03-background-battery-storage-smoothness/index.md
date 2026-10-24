@@ -6,7 +6,6 @@ weight: 3
 tags: ["Android", "Android优化", "HyperOS", "省电", "存储", "流畅度"]
 series: ["Android 优化体验指南"]
 summary: "待机掉电、后台失控、存储不足、卡顿，大多能在这一层解决；不需要额外工具。"
-hiddenInHomeList: true
 ---
 
 > 本文是[《Android 优化体验指南》](../)系列第 3 篇，共 5 篇。  

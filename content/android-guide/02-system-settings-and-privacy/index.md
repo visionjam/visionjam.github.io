@@ -6,7 +6,6 @@ weight: 2
 tags: ["Android", "Android优化", "HyperOS", "隐私保护", "系统设置"]
 series: ["Android 优化体验指南"]
 summary: "关广告、管通知、收权限、理隐私——这一层风险最低、收益最直接，随时可以改回。"
-hiddenInHomeList: true
 ---
 
 > 本文是[《Android 优化体验指南》](../)系列第 2 篇，共 5 篇。  

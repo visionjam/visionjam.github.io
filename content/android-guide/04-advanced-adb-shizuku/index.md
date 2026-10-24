@@ -6,7 +6,6 @@ weight: 4
 tags: ["Android", "Android优化", "adb", "Shizuku", "玩机"]
 series: ["Android 优化体验指南"]
 summary: "adb 与 Shizuku 能解决系统设置够不到的部分，但每一步都要能回滚。"
-hiddenInHomeList: true
 ---
 
 > 本文是[《Android 优化体验指南》](../)系列第 4 篇，共 5 篇。  

@@ -6,7 +6,6 @@ weight: 1
 tags: ["Android", "Android优化", "HyperOS", "手机优化"]
 series: ["Android 优化体验指南"]
 summary: "优化不是堆工具，也不是把后台杀光。先想清楚目标、风险和真实瓶颈，再做一次体检。"
-hiddenInHomeList: true
 ---
 
 > 本文是[《Android 优化体验指南》](../)系列第 1 篇，共 5 篇。  

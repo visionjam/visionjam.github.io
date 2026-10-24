@@ -24,10 +24,6 @@ menu:
       name: 文章
       url: /posts/
       weight: 10
-    - identifier: android-guide
-      name: Android 优化
-      url: /android-guide/
-      weight: 12
     - identifier: ranking
       name: 排行
       url: /ranking/

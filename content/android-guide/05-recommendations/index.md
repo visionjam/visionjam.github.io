@@ -6,7 +6,6 @@ weight: 5
 tags: ["Android", "Android优化", "数字极简", "隐私保护", "应用推荐"]
 series: ["Android 优化体验指南"]
 summary: "最后一篇不讲命令，讲选择：少装一点、用好一点，把数据握在自己手里。"
-hiddenInHomeList: true
 ---
 
 > 本文是[《Android 优化体验指南》](../)系列第 5 篇，共 5 篇。  
