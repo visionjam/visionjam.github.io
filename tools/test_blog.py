@@ -723,6 +723,10 @@ class SiteBuildTests(unittest.TestCase):
             self.assertIn("ranking-filter", ranking)
             self.assertIn('data-filter="测试A"', ranking)
             self.assertIn('data-tags="测试A"', ranking)
+            self.assertIn('data-sort="likes"', ranking)
+            self.assertIn('data-sort="time"', ranking)
+            self.assertIn("data-likes=", ranking)
+            self.assertIn("data-date=", ranking)
             self.assertIn("点赞与评论", post)
             self.assertIn("comments-hint", post)
         finally:

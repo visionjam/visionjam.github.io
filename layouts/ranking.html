@@ -43,6 +43,12 @@
 </nav>
 {{- end }}
 
+<div class="ranking-sort" aria-label="排序方式">
+  <span class="ranking-sort-label">排序：</span>
+  <a href="?sort=likes" data-sort="likes" class="active" aria-current="page">站内赞</a>
+  <a href="?sort=time" data-sort="time">时间</a>
+</div>
+
 {{- partial "site_stats.html" . }}
 
 {{- if $entries }}
@@ -50,7 +56,7 @@
   {{- range $index, $entry := $entries }}
   {{- $page := $entry.page }}
   {{- $pageTags := $page.Params.tags | default slice }}
-  <li class="ranking-item" data-tags="{{ delimit $pageTags " " }}">
+  <li class="ranking-item" data-tags="{{ delimit $pageTags " " }}" data-likes="{{ $entry.likes }}" data-date="{{ $page.Date.Unix }}">
     <span class="rank">{{ add $index 1 }}</span>
     <div class="rank-main">
       <a class="rank-title" href="{{ $page.RelPermalink }}">{{ $page.Title }}</a>
@@ -66,11 +72,21 @@
 <script>
 (function () {
   var tabs = document.querySelectorAll('.ranking-filter .type-tab');
+  var list = document.querySelector('.ranking-list');
   var items = document.querySelectorAll('.ranking-list .ranking-item');
-  if (!tabs.length) return;
+  if (!tabs.length || !list) return;
   var allowed = Array.prototype.map.call(tabs, function (tab) {
     return tab.getAttribute('data-filter');
   });
+
+  function renumber() {
+    var visible = 0;
+    list.querySelectorAll('.ranking-item').forEach(function (item) {
+      if (!item.hidden) {
+        item.querySelector('.rank').textContent = ++visible;
+      }
+    });
+  }
 
   function apply(filter) {
     tabs.forEach(function (tab) {
@@ -86,6 +102,7 @@
       var tags = (item.getAttribute('data-tags') || '').split(' ');
       item.hidden = filter !== 'all' && tags.indexOf(filter) === -1;
     });
+    renumber();
   }
 
   tabs.forEach(function (tab) {
@@ -106,6 +123,71 @@
   var initial = new URLSearchParams(location.search).get('tag');
   if (allowed.indexOf(initial) !== -1) {
     apply(initial);
+  }
+})();
+</script>
+
+<script>
+(function () {
+  var list = document.querySelector('.ranking-list');
+  if (!list) return;
+  var items = Array.prototype.slice.call(
+    list.querySelectorAll('.ranking-item')
+  );
+  var tabs = document.querySelectorAll('.ranking-sort a');
+  var modes = ['likes', 'time'];
+
+  function value(item, mode) {
+    if (mode === 'time') return parseFloat(item.getAttribute('data-date')) || 0;
+    return parseFloat(item.getAttribute('data-likes')) || 0;
+  }
+
+  function applySort(mode) {
+    tabs.forEach(function (tab) {
+      var active = tab.getAttribute('data-sort') === mode;
+      tab.classList.toggle('active', active);
+      if (active) {
+        tab.setAttribute('aria-current', 'page');
+      } else {
+        tab.removeAttribute('aria-current');
+      }
+    });
+    items.sort(function (a, b) {
+      var av = value(a, mode);
+      var bv = value(b, mode);
+      if (bv !== av) return bv - av;
+      var ad = parseFloat(a.getAttribute('data-date')) || 0;
+      var bd = parseFloat(b.getAttribute('data-date')) || 0;
+      return bd - ad;
+    });
+    items.forEach(function (item) {
+      list.appendChild(item);
+    });
+    var visible = 0;
+    list.querySelectorAll('.ranking-item').forEach(function (item) {
+      if (!item.hidden) {
+        item.querySelector('.rank').textContent = ++visible;
+      }
+    });
+    var url = new URL(location.href);
+    if (mode === 'likes') {
+      url.searchParams.delete('sort');
+    } else {
+      url.searchParams.set('sort', mode);
+    }
+    history.replaceState(null, '', url);
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function (event) {
+      event.preventDefault();
+      applySort(tab.getAttribute('data-sort'));
+    });
+  });
+
+  var initial = new URLSearchParams(location.search).get('sort');
+  if (modes.indexOf(initial) !== -1) {
+    applySort(initial);
   }
 })();
 </script>
