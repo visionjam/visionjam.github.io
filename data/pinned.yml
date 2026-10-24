@@ -6,4 +6,7 @@
 #     description: "一句话说明（可省略）"
 #   - title: "博客注意事项"
 #     url: "https://example.com/notice"
-items: []
+items:
+  - title: "Android 优化体验指南（专栏）"
+    url: "/android-guide/"
+    description: "5 篇系列：优化观与体检、系统设置与隐私、后台省电与存储、adb/Shizuku、推荐指南"

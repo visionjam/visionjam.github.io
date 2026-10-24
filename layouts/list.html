@@ -46,7 +46,7 @@
 
 {{- if $isHome }}
 {{- $allHomePages := where site.RegularPages "Type" "in" site.Params.mainSections }}
-{{- $allHomePages = where $allHomePages "Params.hiddenInHomeList" "!=" "true" }}
+{{- $allHomePages = where $allHomePages "Params.hiddenInHomeList" "!=" true }}
 {{- $moreHome = gt (len $allHomePages) $homeLimit }}
 {{- $pages = first $homeLimit $allHomePages }}
 {{- end }}

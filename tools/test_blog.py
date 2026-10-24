@@ -3,6 +3,7 @@ import contextlib
 import datetime as dt
 import io
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -588,6 +589,18 @@ class SiteBuildTests(unittest.TestCase):
             errors="replace",
         )
 
+    def expected_main_section_count(self):
+        """按 hugo.yml 的 mainSections 统计当前内容页数。"""
+        config = (self.root / "hugo.yml").read_text(encoding="utf-8")
+        match = re.search(r"(?m)^  mainSections:\n((?:    - \S+\n?)+)", config)
+        if not match:
+            self.fail("hugo.yml 缺少 mainSections")
+        sections = re.findall(r"(?m)^    - (\S+)$", match.group(1))
+        return sum(
+            len(list((self.root / "content" / section).glob("*/index.md")))
+            for section in sections
+        )
+
     def test_about_page_has_common_links_and_contributions(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.build(Path(tmp) / "public")
@@ -713,7 +726,7 @@ class SiteBuildTests(unittest.TestCase):
             self.assertIn("约 1 分钟", post)
             self.assertIn("站内赞 5", post)
             self.assertIn("站内赞 0", unliked)
-            self.assertIn("共 5 篇", home)
+            self.assertIn(f"共 {self.expected_main_section_count()} 篇", home)
             self.assertIn("站内赞 7", home)
             self.assertLess(
                 ranking.index("TABTEST-LIKE-A"), ranking.index("TABTEST-LIKE-B")
