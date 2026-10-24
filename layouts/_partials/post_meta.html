@@ -1,0 +1,32 @@
+{{- $meta := slice }}
+
+{{- if not .Date.IsZero -}}
+    {{- $meta = $meta | append (printf "<span title='%s'>%s</span>" (.Date | time.Format "2006-01-02T15:04:05-07:00") (.Date | time.Format (default ":date_long" site.Params.DateFormat))) }}
+{{- end }}
+
+{{- if eq .Section "posts" -}}
+    {{- $chars := strings.RuneCount (replaceRE `\s+` "" .Plain) -}}
+    {{- if gt $chars 0 -}}
+        {{- $minutes := div (add $chars 399) 400 -}}
+        {{- $meta = $meta | append (printf "<span>%s 字 · 约 %d 分钟</span>" (lang.FormatNumber 0 $chars) $minutes) -}}
+    {{- end -}}
+    {{- $likesData := site.Data.likes | default dict -}}
+    {{- $likeItems := $likesData.items | default dict -}}
+    {{- $likes := 0 -}}
+    {{- with index $likeItems .RelPermalink -}}
+        {{- $likes = .likes | default 0 -}}
+    {{- end -}}
+    {{- $meta = $meta | append (printf "<span>站内赞 %s</span>" (lang.FormatNumber 0 $likes)) -}}
+{{- end -}}
+
+{{- if not (.Param "hideAuthor") -}}
+    {{- with (partial "author.html" .) }}
+        {{- $meta = $meta | append (printf "<span>%s</span>" .) }}
+    {{- end }}
+{{- end }}
+
+{{/* Combine all meta information into a single string with separators and render it as HTML.*/}}
+
+{{- with $meta }}
+    {{- delimit . "&nbsp;·&nbsp;" | safeHTML -}}
+{{- end -}}

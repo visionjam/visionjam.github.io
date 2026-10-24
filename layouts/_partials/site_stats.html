@@ -1,0 +1,19 @@
+{{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections -}}
+{{- $chars := 0 -}}
+{{- $minutes := 0 -}}
+{{- range $pages -}}
+  {{- $count := strings.RuneCount (replaceRE `\s+` "" .Plain) -}}
+  {{- $chars = add $chars $count -}}
+  {{- if gt $count 0 -}}
+    {{- $minutes = add $minutes (div (add $count 399) 400) -}}
+  {{- end -}}
+{{- end -}}
+{{- $likesData := site.Data.likes | default dict -}}
+{{- $likeItems := $likesData.items | default dict -}}
+{{- $likes := 0 -}}
+{{- range $pages -}}
+  {{- with index $likeItems .RelPermalink -}}
+    {{- $likes = add $likes (.likes | default 0) -}}
+  {{- end -}}
+{{- end -}}
+<p class="site-stats">共 {{ len $pages }} 篇 · {{ lang.FormatNumber 0 $chars }} 字 · 约 {{ lang.FormatNumber 0 $minutes }} 分钟 · 站内赞 {{ lang.FormatNumber 0 $likes }}</p>

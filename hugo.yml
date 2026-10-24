@@ -23,6 +23,10 @@ menu:
       name: 文章
       url: /posts/
       weight: 10
+    - identifier: ranking
+      name: 排行
+      url: /ranking/
+      weight: 15
     - identifier: tags
       name: 标签
       url: /tags/
@@ -49,7 +53,8 @@ params:
     - posts
   homeLimit: 20
   defaultTheme: auto
-  ShowReadingTime: true
+  # 阅读时长改由 layouts/_partials/post_meta.html 按中文字符口径计算
+  ShowReadingTime: false
   ShowShareButtons: false
   ShowPostNavLinks: true
   ShowBreadCrumbs: true

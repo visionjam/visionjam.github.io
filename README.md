@@ -7,9 +7,11 @@
 
 ## 主页结构
 
-- 主页从上到下为：站点简介、置顶、最新 20 篇文章（`params.homeLimit` 可调）。
+- 主页从上到下为：站点简介、全站统计条、置顶、最新 20 篇文章（`params.homeLimit` 可调）。
 - 置顶在 `data/pinned.yml` 中维护，按文件顺序显示，支持站内路径与外部链接。
 - 「文章」页（`/posts/`）保留全部分页列表；文章超过 20 篇时，主页底部显示「查看全部文章」。
+- 「排行」页（`/ranking/`）按站内点赞数排序，并显示全站统计条。
+- 文章标题下显示中文字数、预计阅读时长和站内赞数。
 
 ## 本地环境
 
@@ -47,9 +49,10 @@ python3 tools/blog.py publish
 - 隐私扫描覆盖文本文件中的本机路径、代理地址、密钥、手机号等；图片内容仍需自行确认。
 - 工具测试：`python3 tools/test_blog.py`。
 
-## 评论与 GitHub 贡献
+## 评论、站内点赞与 GitHub 贡献
 
-- 文章页评论使用 [Giscus](https://giscus.app/)，需要 GitHub 登录；评论存储在 GitHub Discussions。
+- 文章页评论使用 [Giscus](https://giscus.app/)，需要 GitHub 登录；评论和主帖 👍 都存储在 GitHub Discussions。
+- 站内赞就是 Giscus 主帖的 👍 数：构建前由 `tools/fetch_likes.py` 读取并写入 `data/likes.json`，页面和排行读取这份数据。点赞后要等下一次构建（每天 03:00 UTC 或下次推送）才会更新显示。
 - About 页的 GitHub 贡献日历由 [lowlighter/metrics](https://github.com/lowlighter/metrics) 在 GitHub Actions 构建时生成，每天自动刷新。
 
 ## 写一篇新文章（手动方式）
@@ -107,12 +110,17 @@ content/
   search.md       搜索页
 tools/
   blog.py         写作与发布工具
+  fetch_likes.py  从 GitHub Discussions 读取站内赞
   test_blog.py    工具与站点构建测试
 data/
   pinned.yml      主页置顶清单
+  likes.json      站内赞快照（CI 构建前自动刷新）
 layouts/
   list.html       主页与列表页布局覆盖
-  _partials/comments.html          Giscus 评论
+  ranking.html    站内赞排行页
+  _partials/comments.html          Giscus 评论/点赞
+  _partials/post_meta.html         中文字数、阅读时长、站内赞
+  _partials/site_stats.html        全站统计条
   _shortcodes/github-metrics.html  About 贡献图
 static/                              CI 生成的贡献 SVG（本地通常为空）
 new-post.bat / publish.bat       Windows 双击入口

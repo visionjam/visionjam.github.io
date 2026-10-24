@@ -2,6 +2,7 @@ import argparse
 import contextlib
 import datetime as dt
 import io
+import json
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blog
+import fetch_likes
 
 
 def fake_windows_path() -> str:
@@ -440,6 +442,122 @@ class PublishFlowTests(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), before)
 
 
+class FetchLikesTests(unittest.TestCase):
+    def test_extract_likes_reads_thumbs_up_only(self):
+        nodes = [
+            {
+                "title": "/posts/a/",
+                "url": "https://github.com/o/r/discussions/1",
+                "reactionGroups": [
+                    {"content": "THUMBS_UP", "users": {"totalCount": 3}},
+                    {"content": "HEART", "users": {"totalCount": 9}},
+                ],
+            }
+        ]
+        self.assertEqual(
+            fetch_likes.extract_likes(nodes),
+            {
+                "/posts/a/": {
+                    "likes": 3,
+                    "url": "https://github.com/o/r/discussions/1",
+                }
+            },
+        )
+
+    def test_discussion_key_extracts_trailing_path(self):
+        self.assertEqual(fetch_likes.discussion_key("/posts/hello-world/"), "/posts/hello-world/")
+        self.assertEqual(
+            fetch_likes.discussion_key("Comments for /posts/hello-world/"),
+            "/posts/hello-world/",
+        )
+        self.assertEqual(
+            fetch_likes.discussion_key("https://example.com/posts/hello-world/"),
+            "/posts/hello-world/",
+        )
+
+    def test_collect_paginates(self):
+        pages = [
+            {
+                "data": {
+                    "repository": {
+                        "discussions": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                            "nodes": [{"title": "/posts/a/", "reactionGroups": []}],
+                        }
+                    }
+                }
+            },
+            {
+                "data": {
+                    "repository": {
+                        "discussions": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [{"title": "/posts/b/", "reactionGroups": []}],
+                        }
+                    }
+                }
+            },
+        ]
+        calls = []
+
+        def opener(query, variables, token):
+            calls.append(variables)
+            return pages[len(calls) - 1]
+
+        items = fetch_likes.collect("o", "r", "t", opener=opener)
+        self.assertEqual(set(items), {"/posts/a/", "/posts/b/"})
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["cursor"], None)
+        self.assertEqual(calls[1]["cursor"], "c1")
+
+    def test_main_without_token_keeps_existing_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "likes.json"
+            path.write_text('{"items": {"x": {"likes": 1}}}', encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = fetch_likes.main(["--output", str(path)], env={})
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")),
+                {"items": {"x": {"likes": 1}}},
+            )
+
+    def test_main_api_failure_keeps_existing_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "likes.json"
+            path.write_text('{"items": {"x": {"likes": 1}}}', encoding="utf-8")
+            with mock.patch.object(
+                fetch_likes, "collect", side_effect=RuntimeError("boom")
+            ):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = fetch_likes.main(
+                        ["--output", str(path), "--owner", "o", "--repo", "r"],
+                        env={"GITHUB_TOKEN": "t"},
+                    )
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")),
+                {"items": {"x": {"likes": 1}}},
+            )
+
+    def test_main_writes_items(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "likes.json"
+            with mock.patch.object(
+                fetch_likes,
+                "collect",
+                return_value={"/posts/a/": {"likes": 2, "url": "u"}},
+            ):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = fetch_likes.main(
+                        ["--output", str(path), "--owner", "o", "--repo", "r"],
+                        env={"GITHUB_TOKEN": "t"},
+                    )
+            self.assertEqual(code, 0)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["items"]["/posts/a/"]["likes"], 2)
+
+
 class SiteBuildTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
 
@@ -501,6 +619,69 @@ class SiteBuildTests(unittest.TestCase):
         finally:
             for bundle in reversed(created):
                 shutil.rmtree(bundle, ignore_errors=True)
+
+    def test_stats_meta_site_band_and_ranking(self):
+        created = []
+        likes_path = self.root / "data" / "likes.json"
+        backup = likes_path.read_bytes() if likes_path.exists() else None
+        try:
+            for slug, title, body, day in (
+                ("_stats-a", "TABTEST-LIKE-A", "一二三四五六七八九十", "2026-10-21"),
+                ("_stats-b", "TABTEST-LIKE-B", "一二三四五", "2026-10-20"),
+                ("_stats-c", "TABTEST-LIKE-C", "一二", "2026-10-19"),
+            ):
+                bundle = self.root / "content" / "posts" / slug
+                bundle.mkdir(parents=True)
+                (bundle / "index.md").write_text(
+                    f'---\ntitle: "{title}"\ndate: {day}\ndraft: false\n---\n\n{body}\n',
+                    encoding="utf-8",
+                )
+                created.append(bundle)
+            likes_path.parent.mkdir(parents=True, exist_ok=True)
+            likes_path.write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-01-01T00:00:00+00:00",
+                        "items": {
+                            "/posts/_stats-a/": {"likes": 5, "url": ""},
+                            "/posts/_stats-b/": {"likes": 2, "url": ""},
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                public = Path(tmp) / "public"
+                post = (public / "posts" / "_stats-a" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+                unliked = (public / "posts" / "_stats-c" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+                home = (public / "index.html").read_text(encoding="utf-8")
+                ranking = (public / "ranking" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+            self.assertIn("10 字", post)
+            self.assertIn("约 1 分钟", post)
+            self.assertIn("站内赞 5", post)
+            self.assertIn("站内赞 0", unliked)
+            self.assertIn("共 5 篇", home)
+            self.assertIn("站内赞 7", home)
+            self.assertLess(
+                ranking.index("TABTEST-LIKE-A"), ranking.index("TABTEST-LIKE-B")
+            )
+            self.assertIn("站内赞 5", ranking)
+        finally:
+            for bundle in reversed(created):
+                shutil.rmtree(bundle, ignore_errors=True)
+            if backup is None:
+                likes_path.unlink(missing_ok=True)
+            else:
+                likes_path.write_bytes(backup)
 
     def test_home_shows_pinned_items_before_latest(self):
         data = self.root / "data" / "pinned.yml"

@@ -159,3 +159,64 @@ body {
 :root[data-theme="dark"] .home-more a {
   color: #8fb8da;
 }
+
+/* 全站统计条 */
+.site-stats {
+  margin: 0 0 1.4rem;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid #2f5d8a;
+  background: rgba(47, 93, 138, 0.06);
+  color: var(--secondary);
+  line-height: 1.8;
+}
+
+/* 站内赞排行 */
+.ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ranking-item {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ranking-item:last-child {
+  border-bottom: none;
+}
+
+.rank {
+  flex: 0 0 2.2rem;
+  text-align: right;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.rank-top .rank {
+  color: #b06a2c;
+}
+
+:root[data-theme="dark"] .rank-top .rank {
+  color: #d79a5b;
+}
+
+.rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-title {
+  font-weight: 600;
+}
+
+.rank-meta {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--secondary);
+  font-size: 0.9rem;
+}

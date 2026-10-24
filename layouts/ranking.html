@@ -1,0 +1,47 @@
+{{- define "main" }}
+
+{{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections -}}
+{{- $likesData := site.Data.likes | default dict -}}
+{{- $likeItems := $likesData.items | default dict -}}
+{{- $entries := slice -}}
+{{- range $pages -}}
+  {{- $count := strings.RuneCount (replaceRE `\s+` "" .Plain) -}}
+  {{- $minutes := 0 -}}
+  {{- if gt $count 0 -}}
+    {{- $minutes = div (add $count 399) 400 -}}
+  {{- end -}}
+  {{- $likes := 0 -}}
+  {{- with index $likeItems .RelPermalink -}}
+    {{- $likes = .likes | default 0 -}}
+  {{- end -}}
+  {{- $entries = $entries | append (dict "page" . "likes" $likes "chars" $count "minutes" $minutes "sort_key" (printf "%012d-%012d" (int $likes) .Date.Unix)) -}}
+{{- end -}}
+{{- $entries = sort $entries "sort_key" "desc" -}}
+
+<header class="page-header">
+  <h1>{{ .Title }}</h1>
+  {{- with .Content }}
+  <div class="post-content md-content">{{ . }}</div>
+  {{- end }}
+</header>
+
+{{- partial "site_stats.html" . }}
+
+{{- if $entries }}
+<ol class="ranking-list">
+  {{- range $index, $entry := $entries }}
+  {{- $page := $entry.page }}
+  <li class="ranking-item{{ if lt $index 3 }} rank-top{{ end }}">
+    <span class="rank">{{ add $index 1 }}</span>
+    <div class="rank-main">
+      <a class="rank-title" href="{{ $page.RelPermalink }}">{{ $page.Title }}</a>
+      <span class="rank-meta">站内赞 {{ lang.FormatNumber 0 $entry.likes }} · {{ lang.FormatNumber 0 $entry.chars }} 字 · 约 {{ $entry.minutes }} 分钟</span>
+    </div>
+  </li>
+  {{- end }}
+</ol>
+{{- else }}
+<p>暂无文章。</p>
+{{- end }}
+
+{{- end }}
