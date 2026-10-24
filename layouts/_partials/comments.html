@@ -1,6 +1,7 @@
 {{- if and (.Param "comments") (eq .Section "posts") (site.Params.giscus.categoryId) -}}
 <div class="comments" id="comments">
-  <h2>评论</h2>
+  <h2>点赞与评论</h2>
+  <p class="comments-hint">登录 GitHub 后可点 👍 或留言；点赞数在下次构建时更新。</p>
   <script src="https://giscus.app/client.js"
           data-repo="{{ site.Params.giscus.repo }}"
           data-repo-id="{{ site.Params.giscus.repoId }}"

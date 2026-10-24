@@ -3,6 +3,15 @@
 {{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections -}}
 {{- $likesData := site.Data.likes | default dict -}}
 {{- $likeItems := $likesData.items | default dict -}}
+{{- $tags := slice -}}
+{{- range $pages -}}
+  {{- range .Params.tags -}}
+    {{- if not (in $tags .) -}}
+      {{- $tags = $tags | append . -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $tags = sort $tags -}}
 {{- $entries := slice -}}
 {{- range $pages -}}
   {{- $count := strings.RuneCount (replaceRE `\s+` "" .Plain) -}}
@@ -25,13 +34,23 @@
   {{- end }}
 </header>
 
+{{- if $tags }}
+<nav class="type-tabs ranking-filter" aria-label="排行筛选">
+  <a class="type-tab active" href="?tag=all" data-filter="all" aria-current="page">全部</a>
+  {{- range $tags }}
+  <a class="type-tab" href="?tag={{ . | urlquery }}" data-filter="{{ . }}">{{ . }}</a>
+  {{- end }}
+</nav>
+{{- end }}
+
 {{- partial "site_stats.html" . }}
 
 {{- if $entries }}
 <ol class="ranking-list">
   {{- range $index, $entry := $entries }}
   {{- $page := $entry.page }}
-  <li class="ranking-item">
+  {{- $pageTags := $page.Params.tags | default slice }}
+  <li class="ranking-item" data-tags="{{ delimit $pageTags " " }}">
     <span class="rank">{{ add $index 1 }}</span>
     <div class="rank-main">
       <a class="rank-title" href="{{ $page.RelPermalink }}">{{ $page.Title }}</a>
@@ -43,5 +62,52 @@
 {{- else }}
 <p>暂无文章。</p>
 {{- end }}
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.ranking-filter .type-tab');
+  var items = document.querySelectorAll('.ranking-list .ranking-item');
+  if (!tabs.length) return;
+  var allowed = Array.prototype.map.call(tabs, function (tab) {
+    return tab.getAttribute('data-filter');
+  });
+
+  function apply(filter) {
+    tabs.forEach(function (tab) {
+      var active = tab.getAttribute('data-filter') === filter;
+      tab.classList.toggle('active', active);
+      if (active) {
+        tab.setAttribute('aria-current', 'page');
+      } else {
+        tab.removeAttribute('aria-current');
+      }
+    });
+    items.forEach(function (item) {
+      var tags = (item.getAttribute('data-tags') || '').split(' ');
+      item.hidden = filter !== 'all' && tags.indexOf(filter) === -1;
+    });
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function (event) {
+      event.preventDefault();
+      var filter = tab.getAttribute('data-filter');
+      apply(filter);
+      var url = new URL(location.href);
+      if (filter === 'all') {
+        url.searchParams.delete('tag');
+      } else {
+        url.searchParams.set('tag', filter);
+      }
+      history.replaceState(null, '', url);
+    });
+  });
+
+  var initial = new URLSearchParams(location.search).get('tag');
+  if (allowed.indexOf(initial) !== -1) {
+    apply(initial);
+  }
+})();
+</script>
 
 {{- end }}

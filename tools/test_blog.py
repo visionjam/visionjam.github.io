@@ -629,15 +629,33 @@ class SiteBuildTests(unittest.TestCase):
         likes_path = self.root / "data" / "likes.json"
         backup = likes_path.read_bytes() if likes_path.exists() else None
         try:
-            for slug, title, body, day in (
-                ("_stats-a", "TABTEST-LIKE-A", "一二三四五六七八九十", "2026-10-21"),
-                ("_stats-b", "TABTEST-LIKE-B", "一二三四五", "2026-10-20"),
-                ("_stats-c", "TABTEST-LIKE-C", "一二", "2026-10-19"),
+            for slug, title, body, day, tags in (
+                (
+                    "_stats-a",
+                    "TABTEST-LIKE-A",
+                    "一二三四五六七八九十",
+                    "2026-10-21",
+                    ["测试A"],
+                ),
+                (
+                    "_stats-b",
+                    "TABTEST-LIKE-B",
+                    "一二三四五",
+                    "2026-10-20",
+                    ["测试B"],
+                ),
+                ("_stats-c", "TABTEST-LIKE-C", "一二", "2026-10-19", []),
             ):
                 bundle = self.root / "content" / "posts" / slug
                 bundle.mkdir(parents=True)
+                tags_line = (
+                    "tags: " + json.dumps(tags, ensure_ascii=False) + "\n"
+                    if tags
+                    else ""
+                )
                 (bundle / "index.md").write_text(
-                    f'---\ntitle: "{title}"\ndate: {day}\ndraft: false\n---\n\n{body}\n',
+                    f'---\ntitle: "{title}"\ndate: {day}\ndraft: false\n'
+                    f"{tags_line}---\n\n{body}\n",
                     encoding="utf-8",
                 )
                 created.append(bundle)
@@ -680,6 +698,11 @@ class SiteBuildTests(unittest.TestCase):
             )
             self.assertIn("站内赞 5", ranking)
             self.assertNotIn("rank-top", ranking)
+            self.assertIn("ranking-filter", ranking)
+            self.assertIn('data-filter="测试A"', ranking)
+            self.assertIn('data-tags="测试A"', ranking)
+            self.assertIn("点赞与评论", post)
+            self.assertIn("comments-hint", post)
         finally:
             for bundle in reversed(created):
                 shutil.rmtree(bundle, ignore_errors=True)
