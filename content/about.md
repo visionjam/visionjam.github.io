@@ -11,7 +11,10 @@ description: "关于我和这个博客"
 - 知乎：[辩证法的风暴](https://www.zhihu.com/people/kong-qi-82-94)
 - Gmail：[visionjam777@gmail.com](mailto:visionjam777@gmail.com)
 - QQ：[visionjam@qq.com](mailto:visionjam@qq.com)
+- 博客：[visionjam.github.io](https://visionjam.github.io/)
+- 归档站：[visionjam.github.io/zhihu-archive](https://visionjam.github.io/zhihu-archive/)
 - 博客源码：[visionjam/visionjam.github.io](https://github.com/visionjam/visionjam.github.io)
+- 归档站源码：[visionjam/zhihu-archive](https://github.com/visionjam/zhihu-archive)
 - RSS：[/index.xml](/index.xml)
 
 ## 知乎归档

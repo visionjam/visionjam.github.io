@@ -588,6 +588,28 @@ class SiteBuildTests(unittest.TestCase):
             errors="replace",
         )
 
+    def test_about_page_has_common_links_and_contributions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.build(Path(tmp) / "public")
+            about = (Path(tmp) / "public" / "about" / "index.html").read_text(
+                encoding="utf-8"
+            )
+        for needle in (
+            "GitHub",
+            "知乎",
+            "Gmail",
+            "QQ",
+            "博客",
+            "归档站",
+            "博客源码",
+            "归档站源码",
+            "RSS",
+            "GitHub 贡献",
+        ):
+            self.assertIn(needle, about)
+        self.assertIn("github.com/visionjam/visionjam.github.io", about)
+        self.assertIn("github.com/visionjam/zhihu-archive", about)
+
     def test_home_caps_latest_posts_and_links_to_all(self):
         created = []
         try:
