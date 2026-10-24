@@ -820,6 +820,21 @@ class SiteBuildTests(unittest.TestCase):
             else:
                 data.write_bytes(backup)
 
+    def test_stats_page_and_entry_links(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.build(Path(tmp) / "public")
+            public = Path(tmp) / "public"
+            stats = (public / "stats" / "index.html").read_text(encoding="utf-8")
+            home = (public / "index.html").read_text(encoding="utf-8")
+            ranking = (public / "ranking" / "index.html").read_text(encoding="utf-8")
+
+        for needle in ("发文频率", "更新热力图", "写作节奏", "最近更新", "年度回顾"):
+            self.assertIn(needle, stats)
+        self.assertIn("stats-cell", stats)
+        self.assertIn('href="/stats/"', home)
+        self.assertIn('href="/stats/"', ranking)
+        self.assertIn("统计 →", home)
+
 
 if __name__ == "__main__":
     unittest.main()

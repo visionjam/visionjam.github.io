@@ -16,4 +16,4 @@
     {{- $likes = add $likes (.likes | default 0) -}}
   {{- end -}}
 {{- end -}}
-<p class="site-stats">共 {{ len $pages }} 篇 · {{ lang.FormatNumber 0 $chars }} 字 · 约 {{ lang.FormatNumber 0 $minutes }} 分钟 · 站内赞 {{ lang.FormatNumber 0 $likes }}</p>
+<p class="site-stats">共 {{ len $pages }} 篇 · {{ lang.FormatNumber 0 $chars }} 字 · 约 {{ lang.FormatNumber 0 $minutes }} 分钟 · 站内赞 {{ lang.FormatNumber 0 $likes }} · <a href="{{ "stats/" | relURL }}">统计 →</a></p>
