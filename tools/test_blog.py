@@ -474,6 +474,10 @@ class FetchLikesTests(unittest.TestCase):
             fetch_likes.discussion_key("https://example.com/posts/hello-world/"),
             "/posts/hello-world/",
         )
+        self.assertEqual(
+            fetch_likes.discussion_key("posts/hello-world/"),
+            "/posts/hello-world/",
+        )
 
     def test_collect_paginates(self):
         pages = [
