@@ -7,6 +7,6 @@
 #   - title: "博客注意事项"
 #     url: "https://example.com/notice"
 items:
-  - title: "你好，世界"
+  - title: "Hello,world!"
     url: "/posts/hello-world/"
     description: "本站的第一篇文章：为什么开始写博客，以及这里会写些什么。"

@@ -7,7 +7,7 @@ aliases: ["/posts/how-i-write-blog/"]
 summary: "两种写法：有积累的长文先讲一遍、整理大纲，让 AI 起稿后人工审核；短篇纯手搓，保留自己的语气。工具是 VS Code、Obsidian 和 Markor，发布交给 Hugo 和 GitHub Actions。"
 ---
 
-在[《你好，世界》](/posts/hello-world/)里我说过，写作会迫使我把「大概也许可能或许知道」变成「真正想明白了」。这篇接着写具体怎么做。
+在[Hello,world!](/posts/hello-world/)里我说过，写作会迫使我把「大概也许可能或许知道」变成「真正想明白了」。这篇接着写具体怎么做。
 
 ## 为什么写
 
