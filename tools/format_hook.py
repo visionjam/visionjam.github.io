@@ -17,10 +17,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLISH_RE = re.compile(
-    r"(?:\bblog\.py\s+publish\b|\bpublish\.(?:bat|sh)\b|\bgit\s+push\b)",
-    re.IGNORECASE,
-)
+PUBLISH_CMD_RE = re.compile(r"(?:\bblog\.py\s+publish\b|\bpublish\.(?:bat|sh)\b)", re.IGNORECASE)
+GIT_PUSH_RE = re.compile(r"\bgit\b[^\n;&|]*\bpush\b", re.IGNORECASE)
+PUBLISH_RE = re.compile(PUBLISH_CMD_RE.pattern + r"|" + GIT_PUSH_RE.pattern, re.IGNORECASE)
 
 
 def read_command(stream=None) -> str:
@@ -42,8 +41,7 @@ def is_publish_command(command: str) -> bool:
 
 
 def is_direct_push(command: str) -> bool:
-    lowered = (command or "").lower()
-    return "git push" in lowered and "blog.py" not in lowered and "publish." not in lowered
+    return bool(GIT_PUSH_RE.search(command or "")) and not PUBLISH_CMD_RE.search(command or "")
 
 
 def run_check(command: str) -> subprocess.CompletedProcess[str]:
