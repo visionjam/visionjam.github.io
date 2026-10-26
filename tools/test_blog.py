@@ -14,7 +14,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blog
+import check_format
 import fetch_likes
+import format_hook
 
 
 def fake_windows_path() -> str:
@@ -54,6 +56,76 @@ summary: ""
 ---
 
 在这里开始写作。
+"""
+
+VALID_ARTICLE = """---
+title: "测试文章"
+date: 2026-10-01
+draft: false
+tags: ["测试"]
+summary: "摘要"
+---
+
+正文。
+"""
+
+SERIES_INDEX = """---
+title: "测试系列"
+description: "测试系列栏目"
+date: 2026-10-01
+draft: false
+---
+
+| 篇 | 文章 |
+| --- | --- |
+| 01 | [第一篇](one/) |
+| 02 | [第二篇](two/) |
+"""
+
+SERIES_ONE = """---
+title: "测试系列（一）：第一篇"
+date: 2026-10-01
+draft: false
+weight: 1
+tags: ["测试"]
+series: ["测试系列"]
+summary: "第一篇摘要"
+---
+
+> 本文是[《测试系列》](../)系列第 1 篇，共 2 篇。
+> 适合：测试。
+
+正文一。
+
+**系列导航**
+
+1. **测试系列（一）：第一篇**（本篇）
+2. [测试系列（二）：第二篇](../two/)
+
+> 下一篇：[《测试系列（二）：第二篇》](../two/)。
+"""
+
+SERIES_TWO = """---
+title: "测试系列（二）：第二篇"
+date: 2026-10-01
+draft: false
+weight: 2
+tags: ["测试"]
+series: ["测试系列"]
+summary: "第二篇摘要"
+---
+
+> 本文是[《测试系列》](../)系列第 2 篇，共 2 篇。
+> 适合：测试。
+
+正文二。
+
+**系列导航**
+
+1. [测试系列（一）：第一篇](../one/)
+2. **测试系列（二）：第二篇**（本篇）
+
+> 上一篇：[《测试系列（一）：第一篇》](../one/)。
 """
 
 
@@ -212,6 +284,192 @@ class BundleTests(unittest.TestCase):
             ["content/posts/b/index.md"],
         )
 
+    def test_handles_android_guide_bundles(self):
+        path = "content/android-guide/01-topic/index.md"
+        self.assertEqual(blog.bundle_slug(path), "01-topic")
+        self.assertEqual(blog.bundle_base(path), "content/android-guide/01-topic")
+        self.assertEqual(
+            blog.filter_excluded([path], {"content/android-guide/01-topic"}),
+            [],
+        )
+
+
+class FormatCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            "params:\n  mainSections:\n    - posts\n    - android-guide\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, relative, text):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def make_series(self):
+        self.write("content/android-guide/_index.md", SERIES_INDEX)
+        self.write("content/android-guide/one/index.md", SERIES_ONE)
+        self.write("content/android-guide/two/index.md", SERIES_TWO)
+
+    def codes(self, result):
+        return {issue.code for issue in result.issues}
+
+    def test_valid_article_passes(self):
+        self.write("content/posts/hello/index.md", VALID_ARTICLE)
+        result = check_format.check_paths(self.root)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(result.files, 1)
+
+    def test_published_article_requires_summary(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE.replace('summary: "摘要"', 'summary: ""'),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("frontmatter.summary", self.codes(result))
+
+    def test_published_article_requires_tags(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE.replace('tags: ["测试"]', "tags: []"),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("frontmatter.tags_empty", self.codes(result))
+
+    def test_draft_is_skipped_by_default(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE.replace("draft: false", "draft: true").replace(
+                'summary: "摘要"', 'summary: ""'
+            ),
+        )
+        self.assertEqual(check_format.check_paths(self.root).files, 0)
+        result = check_format.check_paths(self.root, include_drafts=True)
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(result.files, 1)
+
+    def test_bad_date_fails(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE.replace("date: 2026-10-01", "date: 2026/10/01"),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("frontmatter.date", self.codes(result))
+
+    def test_body_h1_fails(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE + "\n# 一级标题\n",
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("body.h1", self.codes(result))
+
+    def test_unclosed_code_fence_fails(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE + "\n```bash\necho hi\n",
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("body.code_fence", self.codes(result))
+
+    def test_missing_image_fails(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE + "\n![图](missing.png)\n",
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("body.image_missing", self.codes(result))
+
+    def test_missing_relative_link_fails(self):
+        self.write(
+            "content/posts/hello/index.md",
+            VALID_ARTICLE + "\n[链接](../not-found/)\n",
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("body.link_missing", self.codes(result))
+
+    def test_flat_markdown_must_be_a_bundle(self):
+        self.write("content/posts/flat.md", VALID_ARTICLE)
+        result = check_format.check_paths(self.root, ["content/posts/flat.md"])
+        self.assertIn("file.bundle", self.codes(result))
+
+    def test_changed_image_checks_its_bundle(self):
+        self.write("content/posts/hello/index.md", VALID_ARTICLE)
+        (self.root / "content/posts/hello/cover.png").write_bytes(b"\x89PNG\r\n")
+        result = check_format.check_paths(self.root, ["content/posts/hello/cover.png"])
+        self.assertEqual(result.files, 1)
+
+    def test_valid_series_passes(self):
+        self.make_series()
+        result = check_format.check_paths(self.root)
+        self.assertTrue(result.ok, result.issues)
+
+    def test_series_requires_bottom_nav(self):
+        self.make_series()
+        self.write(
+            "content/android-guide/one/index.md",
+            SERIES_ONE.replace("**系列导航**", "没有导航"),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("series.bottom_nav", self.codes(result))
+
+    def test_series_total_mismatch_fails(self):
+        self.make_series()
+        self.write(
+            "content/android-guide/one/index.md",
+            SERIES_ONE.replace("共 2 篇", "共 3 篇"),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("series.top_nav_total", self.codes(result))
+
+    def test_series_index_must_link_all_articles(self):
+        self.make_series()
+        self.write(
+            "content/android-guide/_index.md",
+            SERIES_INDEX.replace("| 02 | [第二篇](two/) |\n", ""),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("series.index_link", self.codes(result))
+
+    def test_series_duplicate_weight_fails(self):
+        self.make_series()
+        self.write(
+            "content/android-guide/two/index.md",
+            SERIES_TWO.replace("weight: 2", "weight: 1"),
+        )
+        result = check_format.check_paths(self.root)
+        self.assertIn("series.weight_duplicate", self.codes(result))
+
+
+class FormatHookTests(unittest.TestCase):
+    def test_recognizes_publish_commands(self):
+        for command in (
+            "python tools/blog.py publish",
+            "py -3 tools\\blog.py publish --dry-run",
+            "./publish.sh",
+            "publish.bat",
+            "git push origin main",
+        ):
+            self.assertTrue(format_hook.is_publish_command(command), command)
+
+    def test_ignores_regular_commands(self):
+        for command in ("git status", "hugo --minify", "python tools/check_format.py"):
+            self.assertFalse(format_hook.is_publish_command(command), command)
+
+    def test_reads_command_from_stdin(self):
+        payload = json.dumps({"tool_input": {"command": "git push"}})
+        self.assertEqual(format_hook.read_command(io.StringIO(payload)), "git push")
+
+    def test_direct_push_is_global_check(self):
+        self.assertTrue(format_hook.is_direct_push("git push origin main"))
+        self.assertFalse(format_hook.is_direct_push("python tools/blog.py publish"))
+
 
 class DraftPostTests(unittest.TestCase):
     def setUp(self):
@@ -366,6 +624,12 @@ class PublishFlowTests(unittest.TestCase):
         (self.root / "content/posts/hello/index.md").write_text(
             "---\ntitle: Hello\ndraft: false\n---\n\nold\n", encoding="utf-8"
         )
+        (self.root / "content/android-guide/guide-one").mkdir(parents=True)
+        (self.root / "content/android-guide/guide-one/index.md").write_text(
+            '---\ntitle: Guide One\ndate: 2026-10-01\ndraft: false\n'
+            'tags: ["测试"]\nsummary: "摘要"\n---\n\nold\n',
+            encoding="utf-8",
+        )
         self.git("add", ".")
         self.git("commit", "-m", "init")
         self.git("push", "-u", "origin", "main")
@@ -391,7 +655,9 @@ class PublishFlowTests(unittest.TestCase):
     def test_publishes_draft_end_to_end(self):
         draft = self.root / "content/posts/hello/index.md"
         draft.write_text(
-            "---\ntitle: Hello\ndraft: true\n---\n\nnew\n", encoding="utf-8"
+            '---\ntitle: Hello\ndate: 2026-10-01\ntags: ["测试"]\n'
+            'summary: "摘要"\ndraft: true\n---\n\nnew\n',
+            encoding="utf-8",
         )
         with mock.patch("blog.ask_yes_no", return_value=True):
             with contextlib.redirect_stdout(io.StringIO()):
@@ -415,10 +681,56 @@ class PublishFlowTests(unittest.TestCase):
         )
         self.assertIn("draft: false", remote_file.stdout)
 
+    def test_publishes_android_guide_draft(self):
+        draft = self.root / "content/android-guide/guide-one/index.md"
+        draft.write_text(
+            '---\ntitle: Guide One\ndate: 2026-10-01\ntags: ["测试"]\n'
+            'summary: "摘要"\ndraft: true\n---\n\nnew\n',
+            encoding="utf-8",
+        )
+        with mock.patch("blog.ask_yes_no", return_value=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = blog.cmd_publish(self.args(), root=self.root)
+        self.assertEqual(code, 0)
+        self.assertIn("draft: false", draft.read_text(encoding="utf-8"))
+        self.assertEqual(self.git("log", "-1", "--format=%s").stdout.strip(), "post: Guide One")
+        remote_file = subprocess.run(
+            [
+                "git",
+                "--git-dir",
+                str(self.remote),
+                "show",
+                "main:content/android-guide/guide-one/index.md",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        self.assertIn("draft: false", remote_file.stdout)
+
+    def test_format_error_aborts_and_reverts_draft(self):
+        draft = self.root / "content/posts/hello/index.md"
+        draft.write_text(
+            '---\ntitle: Hello\ntags: ["测试"]\nsummary: "摘要"\n'
+            "draft: true\n---\n\nnew\n",
+            encoding="utf-8",
+        )
+        before = self.git("rev-parse", "HEAD").stdout.strip()
+        with mock.patch("blog.ask_yes_no", return_value=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = blog.cmd_publish(self.args(), root=self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("draft: true", draft.read_text(encoding="utf-8"))
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), before)
+
     def test_declined_draft_is_not_committed(self):
         draft = self.root / "content/posts/hello/index.md"
         draft.write_text(
-            "---\ntitle: Hello\ndraft: true\n---\n\nnew\n", encoding="utf-8"
+            '---\ntitle: Hello\ndate: 2026-10-01\ntags: ["测试"]\n'
+            'summary: "摘要"\ndraft: true\n---\n\nnew\n',
+            encoding="utf-8",
         )
         before = self.git("rev-parse", "HEAD").stdout.strip()
         with mock.patch("blog.ask_yes_no", return_value=False):
@@ -432,7 +744,9 @@ class PublishFlowTests(unittest.TestCase):
         local = "127" + "." + "0.0.1"
         draft = self.root / "content/posts/hello/index.md"
         draft.write_text(
-            f"---\ntitle: Hello\ndraft: true\n---\n\n{local}\n", encoding="utf-8"
+            '---\ntitle: Hello\ndate: 2026-10-01\ntags: ["测试"]\n'
+            f'summary: "摘要"\ndraft: true\n---\n\n{local}\n',
+            encoding="utf-8",
         )
         before = self.git("rev-parse", "HEAD").stdout.strip()
         with mock.patch("blog.ask_yes_no", side_effect=[True, False]):
@@ -625,6 +939,33 @@ class SiteBuildTests(unittest.TestCase):
             self.assertIn(needle, about)
         self.assertIn("github.com/visionjam/visionjam.github.io", about)
         self.assertIn("github.com/visionjam/zhihu-archive", about)
+
+    def test_android_guide_article_has_meta_and_comments(self):
+        bundle = self.root / "content" / "android-guide" / "_sitetest-android"
+        bundle.mkdir(parents=True)
+        (bundle / "index.md").write_text(
+            '---\ntitle: "SITETEST-ANDROID"\ndate: 2026-10-20\ndraft: false\n'
+            'tags: ["测试"]\nsummary: "测试摘要"\n---\n\n一二三四五六七八九十\n',
+            encoding="utf-8",
+        )
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                page = (
+                    Path(tmp)
+                    / "public"
+                    / "android-guide"
+                    / "_sitetest-android"
+                    / "index.html"
+                ).read_text(encoding="utf-8")
+
+            self.assertIn("10 字", page)
+            self.assertIn("约 1 分钟", page)
+            self.assertIn("站内赞 0", page)
+            self.assertIn("giscus.app", page)
+            self.assertIn("点赞与评论", page)
+        finally:
+            shutil.rmtree(bundle, ignore_errors=True)
 
     def test_home_caps_latest_posts_and_links_to_all(self):
         created = []

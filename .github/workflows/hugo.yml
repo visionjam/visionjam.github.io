@@ -66,6 +66,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/fetch_likes.py
 
+      - name: Check article format
+        run: python3 tools/check_format.py
+
       - name: Build with Hugo
         run: hugo --minify --gc
 

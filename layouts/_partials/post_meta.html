@@ -24,7 +24,7 @@
     {{- end -}}
 {{- end -}}
 
-{{- if eq $page.Section "posts" -}}
+{{- if in site.Params.mainSections $page.Section -}}
     {{- $chars := strings.RuneCount (replaceRE `\s+` "" $page.Plain) -}}
     {{- if gt $chars 0 -}}
         {{- $minutes := div (add $chars 399) 400 -}}

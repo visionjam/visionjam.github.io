@@ -3,7 +3,7 @@
 基于 [Hugo](https://gohugo.io/) 与 [PaperMod](https://github.com/adityatelange/hugo-PaperMod) 的个人博客，部署在 GitHub Pages。
 
 - 线上地址：https://visionjam.github.io
-- 写作方式：Markdown（`content/posts/`）
+- 写作方式：Markdown（`content/posts/`、`content/android-guide/`）
 
 ## 主页结构
 
@@ -44,11 +44,31 @@ python3 tools/blog.py publish
 ```
 
 - `new`：创建 `content/posts/<英文短名>/index.md`，自动填好标题和日期。
-- `publish`：检测草稿、本地构建、隐私扫描、列出改动，按 `Y` 确认后只提交 `content/` 并推送到 `main`。
+- `publish`：检测草稿、格式检查、本地构建、隐私扫描、列出改动，按 `Y` 确认后只提交 `content/` 并推送到 `main`。`posts/` 与 `android-guide/` 下的文章都会被识别。
 - 只检查不推送：`python3 tools/blog.py publish --dry-run`。
 - 没装 Hugo 或不是 extended 版时，脚本会跳过本地构建并提示；GitHub Actions 仍会构建。
 - 隐私扫描覆盖文本文件中的本机路径、代理地址、密钥、手机号等；图片内容仍需自行确认。
 - 工具测试：`python3 tools/test_blog.py`。
+
+### 发布前格式检查
+
+`publish` 会先运行 `tools/check_format.py`，有错误就中止并恢复草稿状态。也可以单独运行：
+
+```bash
+python3 tools/check_format.py            # 检查全部已发布文章
+python3 tools/check_format.py --changed  # 只检查 content/ 下改动涉及的文章
+```
+
+检查项：
+
+- frontmatter 必须包含 `title`、`date`、`draft`、`tags`、`summary`；`date` 为 `YYYY-MM-DD`。
+- 已发布文章必须有至少一个标签和非空摘要；草稿允许留空。
+- 文章必须是 page bundle：`content/<栏目>/<slug>/index.md`，目录名为小写字母/数字/连字符。
+- 正文不能出现一级标题；代码围栏要闭合；相对图片和链接必须存在。
+- 不手写 `lastmod`，由 GitInfo 自动读取最后提交日期。
+- `android-guide` 系列额外检查：标题的「（序号）」与 `weight` 一致、`series` 字段、顶部系列说明、文末系列导航、上一篇/下一篇链接，以及栏目页目录是否列全。
+
+`.claude/settings.json` 还配置了 Claude Code 的 `PreToolUse` hook：Claude 执行 `git push` 或发布命令前会调用 `tools/format_hook.py`，格式错误直接拦截。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 在构建前也会运行同一检查，不通过则不部署。
 
 ## 评论、站内点赞与 GitHub 贡献
 
@@ -73,13 +93,15 @@ hugo new content posts/文章英文名/index.md
 
 | 字段 | 说明 |
 |---|---|
-| title | 标题 |
-| date | 发布日期，YYYY-MM-DD |
-| lastmod | 可选，最后编辑日期；不填则自动取 Git 最后提交日期 |
-| draft | 是否为草稿 |
-| tags | 标签数组 |
-| summary | 摘要，用于列表和 SEO |
+| title | 标题，必填 |
+| date | 发布日期，必须是 `YYYY-MM-DD` |
+| lastmod | 不要手写；最后编辑日期由 GitInfo 自动取最后一次提交 |
+| draft | 是否为草稿；`true` 不会发布 |
+| tags | 标签数组；已发布文章至少一个 |
+| summary | 摘要，用于列表和 SEO；已发布文章不能为空 |
 | cover.image | 可选，封面图相对路径 |
+
+`content/android-guide/` 的系列文章额外使用 `weight`（篇序，整数）和 `series`（系列名），并按现有五篇的格式写顶部系列说明与文末系列导航。
 
 正文使用标准 Markdown。配图放在文章同目录，例如：
 
@@ -111,12 +133,15 @@ git push
 
 ```
 content/
-  posts/          文章（每篇一个目录）
+  posts/          普通文章（每篇一个目录）
+  android-guide/  Android 优化体验指南专栏（每篇一个目录）
   about.md        关于页
   archives.md     归档页
   search.md       搜索页
 tools/
   blog.py         写作与发布工具
+  check_format.py 文章格式检查
+  format_hook.py  Claude Code 发布前格式检查 hook
   fetch_likes.py  从 GitHub Discussions 读取站内赞
   test_blog.py    工具与站点构建测试
 data/
@@ -138,6 +163,7 @@ assets/css/extended/custom.css   视觉定制
 .github/workflows/hugo.yml       自动部署
 themes/PaperMod   主题（git submodule，固定版本）
 .gitattributes    跨平台换行符规则
+.claude/settings.json  Claude Code 发布前格式检查 hook
 ```
 
 ## 主题升级

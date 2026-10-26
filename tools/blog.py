@@ -19,9 +19,12 @@ import webbrowser
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+import check_format
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SITE_URL = "https://visionjam.github.io"
 ACTIONS_URL = "https://github.com/visionjam/visionjam.github.io/actions"
+DEFAULT_SECTIONS = ("posts", "android-guide")
 
 IMAGE_EXTS = {".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 BINARY_EXTS = {
@@ -218,13 +221,30 @@ def scan_files(root: Path, paths: list[str]) -> tuple[list[Finding], list[str]]:
     return findings, images
 
 
-def bundle_slug(path: str) -> str | None:
+def main_sections(root: Path = REPO_ROOT) -> tuple[str, ...]:
+    try:
+        config = (root / "hugo.yml").read_text(encoding="utf-8")
+    except OSError:
+        return DEFAULT_SECTIONS
+    match = re.search(r"(?m)^  mainSections:\n((?:    - \S+\n?)+)", config)
+    if not match:
+        return DEFAULT_SECTIONS
+    sections = tuple(re.findall(r"(?m)^    - (\S+)$", match.group(1)))
+    return sections or DEFAULT_SECTIONS
+
+
+def bundle_base(path: str, sections: tuple[str, ...] = DEFAULT_SECTIONS) -> str | None:
     parts = PurePosixPath(path.replace("\\", "/")).parts
-    if len(parts) >= 4 and parts[0] == "content" and parts[1] == "posts":
+    if len(parts) >= 4 and parts[0] == "content" and parts[1] in sections:
         slug = parts[2]
         if slug and slug != "_index.md":
-            return slug
+            return f"content/{parts[1]}/{slug}"
     return None
+
+
+def bundle_slug(path: str, sections: tuple[str, ...] = DEFAULT_SECTIONS) -> str | None:
+    base = bundle_base(path, sections)
+    return PurePosixPath(base).name if base else None
 
 
 def filter_excluded(paths: list[str], excluded_bundles: set[str]) -> list[str]:
@@ -240,32 +260,36 @@ def filter_excluded(paths: list[str], excluded_bundles: set[str]) -> list[str]:
     return result
 
 
-def draft_posts(root: Path, paths: list[str]) -> list[PostInfo]:
+def draft_posts(
+    root: Path, paths: list[str], sections: tuple[str, ...] = DEFAULT_SECTIONS
+) -> list[PostInfo]:
     seen: set[str] = set()
     result: list[PostInfo] = []
     for path in paths:
-        slug = bundle_slug(path)
-        if not slug or slug in seen:
+        base = bundle_base(path, sections)
+        if not base or base in seen:
             continue
-        seen.add(slug)
-        index_path = root / "content" / "posts" / slug / "index.md"
+        seen.add(base)
+        index_path = root / base / "index.md"
         if not index_path.is_file():
             continue
         text = index_path.read_text(encoding="utf-8")
         if is_draft(text):
-            result.append(PostInfo(slug, index_path, get_title(text)))
+            result.append(PostInfo(PurePosixPath(base).name, index_path, get_title(text)))
     return result
 
 
-def post_titles(root: Path, paths: list[str]) -> list[str]:
+def post_titles(
+    root: Path, paths: list[str], sections: tuple[str, ...] = DEFAULT_SECTIONS
+) -> list[str]:
     seen: set[str] = set()
     titles: list[str] = []
     for path in paths:
-        slug = bundle_slug(path)
-        if not slug or slug in seen:
+        base = bundle_base(path, sections)
+        if not base or base in seen:
             continue
-        seen.add(slug)
-        index_path = root / "content" / "posts" / slug / "index.md"
+        seen.add(base)
+        index_path = root / base / "index.md"
         if not index_path.is_file():
             continue
         title = get_title(index_path.read_text(encoding="utf-8"))
@@ -398,12 +422,13 @@ def cmd_new(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
 
 def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     print("=== 发布文章 ===")
+    sections = main_sections(root)
     changed = changed_content_paths(root)
     if not changed:
         print("没有发现 content/ 下的改动。")
         return 0
 
-    drafts = draft_posts(root, changed)
+    drafts = draft_posts(root, changed, sections)
     excluded: set[str] = set()
     flips: list[Path] = []
     for info in drafts:
@@ -413,7 +438,9 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
             write_text_lf(info.index_path, set_draft(text, False))
             flips.append(info.index_path)
         else:
-            excluded.add(f"content/posts/{info.slug}")
+            base = bundle_base(str(info.index_path.relative_to(root)), sections)
+            if base:
+                excluded.add(base)
 
     actionable = filter_excluded(changed, excluded)
     if not actionable:
@@ -421,6 +448,22 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
         if args.dry_run:
             revert_flips(flips)
         return 0
+
+    format_result = check_format.check_paths(root, actionable, include_drafts=True)
+    if format_result.errors:
+        print("格式检查未通过：")
+        for issue in format_result.issues:
+            prefix = "错误" if issue.is_error else "警告"
+            print(f"  {prefix} {issue.path}:{issue.line} [{issue.code}] {issue.message}")
+        print("请修正后再发布。")
+        revert_flips(flips)
+        return 1
+    if format_result.warnings:
+        print("格式检查警告：")
+        for issue in format_result.warnings:
+            print(f"  警告 {issue.path}:{issue.line} [{issue.code}] {issue.message}")
+    else:
+        print(f"格式检查：{format_result.files} 篇通过。")
 
     if not args.skip_build and not hugo_build(root):
         revert_flips(flips)
@@ -441,7 +484,7 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     else:
         print("隐私扫描：未发现可疑内容。")
 
-    titles = post_titles(root, actionable)
+    titles = post_titles(root, actionable, sections)
     print("\n本次将发布：")
     for path in actionable:
         print(f"  - {path}")
@@ -508,13 +551,14 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     if revision.returncode == 0:
         print(f"提交：{revision.stdout.strip()}")
 
-    slugs: list[str] = []
+    bases: list[str] = []
     for path in actionable:
-        slug = bundle_slug(path)
-        if slug and slug not in slugs:
-            slugs.append(slug)
-    for slug in slugs:
-        print(f"文章地址：{SITE_URL}/posts/{slug}/")
+        base = bundle_base(path, sections)
+        if base and base not in bases:
+            bases.append(base)
+    for base in bases:
+        relative = PurePosixPath(base).relative_to("content").as_posix()
+        print(f"文章地址：{SITE_URL}/{relative}/")
     print(f"Actions：{ACTIONS_URL}")
     print("约 1–2 分钟后上线。")
     if not args.no_open:
