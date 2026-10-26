@@ -455,7 +455,7 @@ class FormatHookTests(unittest.TestCase):
             "./publish.sh",
             "publish.bat",
             "git push origin main",
-            "git -C E:/my/blog push origin main",
+            "git -C repo push origin main",
         ):
             self.assertTrue(format_hook.is_publish_command(command), command)
 
@@ -469,7 +469,7 @@ class FormatHookTests(unittest.TestCase):
 
     def test_direct_push_is_global_check(self):
         self.assertTrue(format_hook.is_direct_push("git push origin main"))
-        self.assertTrue(format_hook.is_direct_push("git -C E:/my/blog push origin main"))
+        self.assertTrue(format_hook.is_direct_push("git -C repo push origin main"))
         self.assertFalse(format_hook.is_direct_push("python tools/blog.py publish"))
 
 
