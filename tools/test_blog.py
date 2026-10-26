@@ -738,6 +738,17 @@ class CheckAllTests(unittest.TestCase):
         check_all.check_article_pages(self.root, articles, summary)
         self.assertEqual(summary.errors, [])
 
+    def test_build_site_cleans_public(self):
+        public = self.root / "public"
+        public.mkdir()
+        stale = public / "stale.html"
+        stale.write_text("stale", encoding="utf-8")
+        with mock.patch(
+            "check_all.shutil.which", return_value="/usr/bin/hugo"
+        ), mock.patch("check_all.blog.hugo_build", return_value=True):
+            self.assertTrue(check_all.build_site(self.root, check_all.Summary()))
+        self.assertFalse(stale.exists())
+
 
 class DoctorTests(unittest.TestCase):
     def setUp(self):

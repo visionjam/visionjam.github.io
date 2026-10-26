@@ -83,6 +83,9 @@ def build_site(root: Path, summary: Summary) -> bool:
     if shutil.which("hugo") is None:
         summary.warn("未找到 Hugo，跳过构建和输出检查。")
         return False
+    public = root / "public"
+    if public.exists():
+        shutil.rmtree(public, ignore_errors=True)
     if not blog.hugo_build(root):
         summary.error("Hugo 构建失败。")
         return False
