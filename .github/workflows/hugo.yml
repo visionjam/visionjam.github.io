@@ -66,11 +66,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/fetch_likes.py
 
-      - name: Check article format
-        run: python3 tools/check_format.py
-
-      - name: Build with Hugo
-        run: hugo --minify --gc
+      - name: Run full checks
+        run: python3 tools/check_all.py
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -87,3 +84,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  verify:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify live site
+        run: python3 tools/verify_site.py --retries 12 --delay 5

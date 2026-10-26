@@ -68,7 +68,18 @@ python3 tools/check_format.py --changed  # 只检查 content/ 下改动涉及的
 - 不手写 `lastmod`，由 GitInfo 自动读取最后提交日期。
 - `android-guide` 系列额外检查：标题的「（序号）」与 `weight` 一致、`series` 字段、顶部系列说明、文末系列导航、上一篇/下一篇链接，以及栏目页目录是否列全。
 
-`.claude/settings.json` 还配置了 Claude Code 的 `PreToolUse` hook：Claude 执行 `git push` 或发布命令前会调用 `tools/format_hook.py`，格式错误直接拦截。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 在构建前也会运行同一检查，不通过则不部署。
+### 一站式检查与自检
+
+```bash
+python3 tools/check_all.py              # 格式 + 隐私 + 构建 + 搜索/RSS/sitemap/内部链接/文章页检查
+python3 tools/check_all.py --skip-build # 只查格式和隐私，不构建
+python3 tools/doctor.py                 # Hugo/主题/Python/hook/likes/pinned 自检
+python3 tools/verify_site.py            # 线上验收；需要代理时加 --proxy http://proxy.example:8080
+```
+
+`check_all.py` 是发布前的总闸，CI 也直接运行它；构建后会检查 `index.json`、RSS、sitemap、内部链接，以及每篇文章页是否还有「站内赞」和评论区。`verify_site.py` 在 CI 部署后自动运行，检查首页、标签、归档、搜索、关于、统计、RSS、搜索索引和全部文章页是否 200。`check_privacy.py` 扫描全仓库文本（不只是 `content/`），工具/测试/文档里的本机路径也会被拦下。
+
+`.claude/settings.json` 现在有两类 hook：`PreToolUse`（Claude 执行 `git push` 或发布命令前拦截）和 `PostToolUse`（编辑 `content/` 下的文章后立即检查，错误会反馈给 Claude 当场修正）。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 构建前运行 `check_all.py`，部署后再跑 `verify_site.py`。
 
 ## 评论、站内点赞与 GitHub 贡献
 
@@ -102,6 +113,16 @@ hugo new content posts/文章英文名/index.md
 | cover.image | 可选，封面图相对路径 |
 
 `content/android-guide/` 的系列文章额外使用 `weight`（篇序，整数）和 `series`（系列名），并按现有五篇的格式写顶部系列说明与文末系列导航。
+
+### 新建/同步系列文章
+
+```bash
+python3 tools/series.py new --slug next-topic --title "下一篇的标题"
+python3 tools/series.py sync --check   # 只检查导航和目录是否需要更新
+python3 tools/series.py sync --write   # 写入改动
+```
+
+`new` 会自动取下一个 `weight`、生成「（序号）」标题、顶部系列说明和文末导航，并更新已有文章的「共 N 篇」、上一篇/下一篇和栏目页目录。`sync` 用于手工改过系列文章后重新对齐；默认只检查，`--write` 才写入。
 
 正文使用标准 Markdown。配图放在文章同目录，例如：
 
@@ -139,11 +160,16 @@ content/
   archives.md     归档页
   search.md       搜索页
 tools/
-  blog.py         写作与发布工具
-  check_format.py 文章格式检查
-  format_hook.py  Claude Code 发布前格式检查 hook
-  fetch_likes.py  从 GitHub Discussions 读取站内赞
-  test_blog.py    工具与站点构建测试
+  blog.py          写作与发布工具
+  check_format.py  文章格式检查
+  check_privacy.py 仓库级隐私扫描
+  check_all.py     一站式检查（格式+隐私+构建+输出）
+  series.py        系列文章生成与导航同步
+  doctor.py        环境与数据自检
+  verify_site.py   线上验收
+  format_hook.py   Claude Code 发布/编辑 hook
+  fetch_likes.py   从 GitHub Discussions 读取站内赞
+  test_blog.py     工具与站点构建测试
 data/
   pinned.yml      主页置顶清单
   likes.json      站内赞快照（CI 构建前自动刷新）
@@ -160,10 +186,10 @@ new-post.bat / publish.bat       Windows 双击入口
 new-post.sh / publish.sh         Linux 入口
 hugo.yml          站点配置
 assets/css/extended/custom.css   视觉定制
-.github/workflows/hugo.yml       自动部署
+.github/workflows/hugo.yml       自动部署 + 部署后线上验收
 themes/PaperMod   主题（git submodule，固定版本）
 .gitattributes    跨平台换行符规则
-.claude/settings.json  Claude Code 发布前格式检查 hook
+.claude/settings.json  Claude Code PreToolUse + PostToolUse hook
 ```
 
 ## 主题升级

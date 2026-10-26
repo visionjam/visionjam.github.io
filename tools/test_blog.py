@@ -14,9 +14,14 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import blog
+import check_all
 import check_format
+import check_privacy
+import doctor
 import fetch_likes
 import format_hook
+import series
+import verify_site
 
 
 def fake_windows_path() -> str:
@@ -125,7 +130,7 @@ summary: "第二篇摘要"
 1. [测试系列（一）：第一篇](../one/)
 2. **测试系列（二）：第二篇**（本篇）
 
-> 上一篇：[《测试系列（一）：第一篇》](../one/)。
+> 上一篇：[《测试系列（一）：第一篇》](../one/) · 本篇完。
 """
 
 
@@ -471,6 +476,334 @@ class FormatHookTests(unittest.TestCase):
         self.assertTrue(format_hook.is_direct_push("git push origin main"))
         self.assertTrue(format_hook.is_direct_push("git -C repo push origin main"))
         self.assertFalse(format_hook.is_direct_push("python tools/blog.py publish"))
+
+    def test_is_content_path(self):
+        root = Path(tempfile.mkdtemp())
+        try:
+            path = root / "content/posts/one/index.md"
+            path.parent.mkdir(parents=True)
+            path.write_text("x", encoding="utf-8")
+            self.assertTrue(format_hook.is_content_path(str(path), root))
+            self.assertFalse(format_hook.is_content_path(str(root / "tools/x.py"), root))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_post_write_check_blocks_errors(self):
+        root = Path(tempfile.mkdtemp())
+        try:
+            path = root / "content/posts/one/index.md"
+            path.parent.mkdir(parents=True)
+            path.write_text("x", encoding="utf-8")
+            fake = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout=json.dumps(
+                    {
+                        "issues": [
+                            {
+                                "path": "content/posts/one/index.md",
+                                "line": 1,
+                                "code": "frontmatter.summary",
+                                "message": "缺少摘要",
+                                "severity": "error",
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+                stderr="",
+            )
+            with mock.patch.object(format_hook, "ROOT", root), mock.patch.object(
+                format_hook, "run_check", return_value=fake
+            ):
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    format_hook.post_write_check({"tool_input": {"file_path": str(path)}})
+            self.assertIn('"decision": "block"', output.getvalue())
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_post_write_check_ignores_non_content(self):
+        root = Path(tempfile.mkdtemp())
+        try:
+            with mock.patch.object(format_hook, "ROOT", root), mock.patch.object(
+                format_hook, "run_check"
+            ) as run:
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    format_hook.post_write_check(
+                        {"tool_input": {"file_path": str(root / "tools/x.py")}}
+                    )
+            self.assertEqual(output.getvalue(), "")
+            run.assert_not_called()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_settings_declare_both_hooks(self):
+        settings = Path(__file__).resolve().parents[1] / ".claude/settings.json"
+        data = json.loads(settings.read_text(encoding="utf-8"))
+        hooks = data["hooks"]
+        self.assertIn("PreToolUse", hooks)
+        self.assertIn("PostToolUse", hooks)
+        commands = [
+            hook["command"]
+            for entries in hooks.values()
+            for entry in entries
+            for hook in entry["hooks"]
+        ]
+        self.assertTrue(any("format_hook.py" in command for command in commands))
+
+
+class SeriesTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            "params:\n  mainSections:\n    - android-guide\n", encoding="utf-8"
+        )
+        section = self.root / "content" / "android-guide"
+        section.mkdir(parents=True)
+        (section / "_index.md").write_text(
+            """---
+title: "测试系列"
+description: "测试系列栏目"
+date: 2026-10-01
+draft: false
+---
+
+| 篇 | 文章 | 内容 | 适合 |
+| --- | --- | --- | --- |
+| 01 | [第一篇](one/) | 内容一 | 所有人 |
+| 02 | [第二篇](two/) | 内容二 | 所有人 |
+""",
+            encoding="utf-8",
+        )
+        (section / "one").mkdir()
+        (section / "one" / "index.md").write_text(SERIES_ONE, encoding="utf-8")
+        (section / "two").mkdir()
+        (section / "two" / "index.md").write_text(SERIES_TWO, encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_sync_is_idempotent(self):
+        changed, errors = series.sync(self.root)
+        self.assertEqual(changed, [])
+        self.assertEqual(errors, [])
+
+    def test_sync_fixes_total_and_missing_link(self):
+        path = self.root / "content/android-guide/one/index.md"
+        text = path.read_text(encoding="utf-8")
+        text = text.replace("共 2 篇", "共 9 篇")
+        text = text.replace(
+            "2. [测试系列（二）：第二篇](../two/)", "2. 测试系列（二）：第二篇"
+        )
+        path.write_text(text, encoding="utf-8")
+        changed, _ = series.sync(self.root, write=True)
+        self.assertIn("content/android-guide/one/index.md", changed)
+        updated = path.read_text(encoding="utf-8")
+        self.assertIn("共 2 篇", updated)
+        self.assertIn("../two/", updated)
+        self.assertEqual(series.sync(self.root)[0], [])
+
+    def test_new_creates_third_and_updates_existing(self):
+        path = series.new_article(
+            self.root,
+            "android-guide",
+            "three",
+            "第三篇",
+            dt.date(2026, 10, 26),
+            ["Android"],
+            published=False,
+        )
+        self.assertTrue(path.is_file())
+        article = check_format.read_article(path, self.root)
+        self.assertIn("（三）", article.fields["title"][0])
+        self.assertEqual(article.fields["weight"][0], "3")
+        self.assertEqual(article.fields["series"][0], '["测试系列"]')
+        one = (self.root / "content/android-guide/one/index.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("../three/", one)
+        self.assertIn("共 3 篇", one)
+        index = (self.root / "content/android-guide/_index.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("(three/)", index)
+        self.assertIn("[第一篇](one/)", index)
+        self.assertEqual(series.sync(self.root)[0], [])
+        result = check_format.check_paths(self.root, include_drafts=True)
+        self.assertTrue(result.ok, result.issues)
+
+    def test_cn_numeral(self):
+        self.assertEqual(series.cn_numeral(1), "一")
+        self.assertEqual(series.cn_numeral(10), "十")
+        self.assertEqual(series.cn_numeral(11), "十一")
+        self.assertEqual(series.cn_numeral(20), "二十")
+        self.assertEqual(series.cn_numeral(35), "三十五")
+
+
+class PrivacyScanTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        subprocess.run(["git", "init", str(self.root)], check=True, capture_output=True)
+        (self.root / "README.md").write_text(
+            "预览 http://local" + "host:1313\n", encoding="utf-8"
+        )
+        (self.root / "tools").mkdir()
+        (self.root / "tools/foo.py").write_text(
+            'path = "' + fake_windows_path() + '"\n', encoding="utf-8"
+        )
+        (self.root / "content/posts/ok").mkdir(parents=True)
+        (self.root / "content/posts/ok/index.md").write_text(
+            "普通正文。\n", encoding="utf-8"
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_scans_tools_and_allowlists_readme(self):
+        findings = check_privacy.scan_repo(self.root)
+        paths = {finding.path for finding in findings}
+        self.assertIn("tools/foo.py", paths)
+        self.assertNotIn("README.md", paths)
+
+    def test_changed_scan_includes_untracked(self):
+        findings = check_privacy.scan_repo(self.root, changed=True)
+        self.assertIn("tools/foo.py", {finding.path for finding in findings})
+
+
+class CheckAllTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            'baseURL: "https://example.com/"\n'
+            "params:\n  mainSections:\n    - posts\n"
+            '  giscus:\n    categoryId: "x"\n',
+            encoding="utf-8",
+        )
+        (self.root / "content/posts/one").mkdir(parents=True)
+        (self.root / "content/posts/one/index.md").write_text(
+            VALID_ARTICLE, encoding="utf-8"
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_target_path_resolves(self):
+        public = self.root / "public"
+        (public / "posts/one").mkdir(parents=True)
+        (public / "posts/one/index.html").write_text("ok", encoding="utf-8")
+        (public / "index.html").write_text("ok", encoding="utf-8")
+        target = check_all.target_path(
+            public, public / "index.html", "/posts/one/#top"
+        )
+        self.assertIsNotNone(target)
+        self.assertTrue(target.is_file())
+        self.assertIsNone(
+            check_all.target_path(
+                public, public / "index.html", "https://example.org/"
+            )
+        )
+        self.assertIsNone(
+            check_all.target_path(public, public / "index.html", "/zhihu-archive/")
+        )
+
+    def test_check_links_reports_missing(self):
+        public = self.root / "public"
+        public.mkdir()
+        (public / "index.html").write_text(
+            '<a href="/missing/">x</a>', encoding="utf-8"
+        )
+        summary = check_all.Summary()
+        check_all.check_links(self.root, summary)
+        self.assertTrue(any("/missing/" in error for error in summary.errors))
+
+    def test_search_index_missing_article(self):
+        public = self.root / "public"
+        public.mkdir()
+        (public / "index.json").write_text("[]", encoding="utf-8")
+        summary = check_all.Summary()
+        articles = check_all.published_articles(self.root)
+        check_all.check_search_index(self.root, articles, summary)
+        self.assertTrue(any("/posts/one/" in error for error in summary.errors))
+
+    def test_article_page_checks_layout(self):
+        public = self.root / "public"
+        page = public / "posts/one/index.html"
+        page.parent.mkdir(parents=True)
+        page.write_text("站内赞 giscus.app 字 · 约", encoding="utf-8")
+        summary = check_all.Summary()
+        articles = check_all.published_articles(self.root)
+        check_all.check_article_pages(self.root, articles, summary)
+        self.assertEqual(summary.errors, [])
+
+
+class DoctorTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            "params:\n  mainSections:\n    - posts\n", encoding="utf-8"
+        )
+        (self.root / "content/posts/one").mkdir(parents=True)
+        (self.root / "content/posts/one/index.md").write_text(
+            VALID_ARTICLE, encoding="utf-8"
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_pinned_missing_article(self):
+        (self.root / "data").mkdir()
+        (self.root / "data/pinned.yml").write_text(
+            'items:\n  - title: "x"\n    url: "/posts/ghost/"\n',
+            encoding="utf-8",
+        )
+        messages = [item.message for item in doctor.check_pinned(self.root)]
+        self.assertTrue(any("ghost" in message for message in messages))
+
+    def test_likes_orphan(self):
+        (self.root / "data").mkdir()
+        (self.root / "data/likes.json").write_text(
+            '{"items": {"/posts/ghost/": {"likes": 1}}}', encoding="utf-8"
+        )
+        messages = [item.message for item in doctor.check_likes(self.root)]
+        self.assertTrue(any("ghost" in message for message in messages))
+
+    def test_sections_missing(self):
+        self.assertEqual(doctor.check_sections(self.root), [])
+        (self.root / "hugo.yml").write_text(
+            "params:\n  mainSections:\n    - nope\n", encoding="utf-8"
+        )
+        self.assertTrue(doctor.check_sections(self.root))
+
+
+class VerifySiteTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            "params:\n  mainSections:\n    - posts\n", encoding="utf-8"
+        )
+        (self.root / "content/posts/one").mkdir(parents=True)
+        (self.root / "content/posts/one/index.md").write_text(
+            VALID_ARTICLE, encoding="utf-8"
+        )
+        (self.root / "content/posts/draft").mkdir()
+        (self.root / "content/posts/draft/index.md").write_text(
+            VALID_ARTICLE.replace("draft: false", "draft: true"), encoding="utf-8"
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_site_paths(self):
+        paths = verify_site.site_paths(self.root)
+        self.assertIn("/", paths)
+        self.assertIn("/index.json", paths)
+        self.assertIn("/posts/one/", paths)
+        self.assertNotIn("/posts/draft/", paths)
 
 
 class DraftPostTests(unittest.TestCase):

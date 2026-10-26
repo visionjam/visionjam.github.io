@@ -12,6 +12,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/format_hook.py\"",
+            "timeout": 60,
+            "statusMessage": "检查文章格式..."
+          }
+        ]
+      }
     ]
   }
 }
