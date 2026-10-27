@@ -39,6 +39,13 @@
     {{- $meta = $meta | append (printf "<span>站内赞 %s</span>" (lang.FormatNumber 0 $likes)) -}}
 {{- end -}}
 
+{{- if $showDates -}}
+    {{- $crossposts := site.Data.zhihu_crossposts | default dict -}}
+    {{- with index $crossposts $page.RelPermalink -}}
+        {{- $meta = $meta | append (printf "<a href='%s' title='本文也发布在知乎归档'>知乎归档</a>" .archive_url) -}}
+    {{- end -}}
+{{- end -}}
+
 {{- if not ($page.Param "hideAuthor") -}}
     {{- with (partial "author.html" $page) }}
         {{- $meta = $meta | append (printf "<span>%s</span>" .) }}

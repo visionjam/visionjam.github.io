@@ -17,6 +17,7 @@ import blog
 import check_all
 import check_format
 import check_privacy
+import crossposts
 import doctor
 import fetch_likes
 import format_hook
@@ -1223,6 +1224,106 @@ class FetchLikesTests(unittest.TestCase):
             self.assertEqual(data["items"]["/posts/a/"]["likes"], 2)
 
 
+class CrosspostTests(unittest.TestCase):
+    @staticmethod
+    def write(root, relative, text):
+        path = Path(root) / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def test_normalize_title_removes_punctuation_and_width(self):
+        self.assertEqual(
+            crossposts.normalize_title("Android 优化（一）：标题"),
+            crossposts.normalize_title("android优化(一)标题"),
+        )
+
+    def test_match_generates_both_mappings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            blog = Path(tmp) / "blog"
+            archive = Path(tmp) / "archive"
+            self.write(
+                blog,
+                "content/android-guide/a/index.md",
+                '---\ntitle: "测试（一）：标题"\ndate: 2026-01-01\n'
+                'draft: false\nsummary: "摘要"\n---\n\n正文\n',
+            )
+            self.write(
+                archive,
+                "content/articles/123/index.md",
+                '---\ntitle: "测试（一）：标题"\ndate: 2026-01-01\n'
+                'zhihu_id: "123"\n---\n\n正文\n',
+            )
+            archive_map, blog_map, ambiguous = crossposts.build_mappings(
+                crossposts.scan_blog(blog), crossposts.scan_archive(archive)
+            )
+
+        self.assertEqual(ambiguous, [])
+        self.assertEqual(
+            archive_map["123"]["url"],
+            "https://visionjam.github.io/android-guide/a/",
+        )
+        self.assertEqual(archive_map["123"]["blog_title"], "测试（一）：标题")
+        self.assertEqual(
+            blog_map["/android-guide/a/"]["archive_url"],
+            "https://visionjam.github.io/zhihu-archive/articles/123/",
+        )
+
+    def test_ambiguous_title_is_not_mapped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            blog = Path(tmp) / "blog"
+            archive = Path(tmp) / "archive"
+            self.write(
+                blog,
+                "content/posts/a/index.md",
+                '---\ntitle: "同名"\ndate: 2026-01-01\n'
+                'draft: false\nsummary: "摘要"\n---\n\n正文\n',
+            )
+            for item_id in ("1", "2"):
+                self.write(
+                    archive,
+                    f"content/articles/{item_id}/index.md",
+                    f'---\ntitle: "同名"\ndate: 2026-01-01\n'
+                    f'zhihu_id: "{item_id}"\nsummary: "另一个摘要"\n---\n\n正文\n',
+                )
+            archive_map, blog_map, ambiguous = crossposts.build_mappings(
+                crossposts.scan_blog(blog), crossposts.scan_archive(archive)
+            )
+
+        self.assertEqual(archive_map, {})
+        self.assertEqual(blog_map, {})
+        self.assertEqual(len(ambiguous), 1)
+
+    def test_existing_manual_mapping_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            blog = Path(tmp) / "blog"
+            archive = Path(tmp) / "archive"
+            self.write(
+                blog,
+                "content/posts/manual/index.md",
+                '---\ntitle: "手动文章"\ndate: 2026-01-01\ndraft: false\n'
+                "---\n\n正文\n",
+            )
+            self.write(
+                archive,
+                "content/articles/999/index.md",
+                '---\ntitle: "知乎标题"\ndate: 2026-01-01\n'
+                'zhihu_id: "999"\n---\n\n正文\n',
+            )
+            archive_map, blog_map, _ = crossposts.build_mappings(
+                crossposts.scan_blog(blog),
+                crossposts.scan_archive(archive),
+                existing={
+                    "999": {
+                        "url": "https://visionjam.github.io/posts/manual/",
+                        "title": "知乎标题",
+                    }
+                },
+            )
+
+        self.assertEqual(archive_map["999"]["blog_title"], "手动文章")
+        self.assertIn("/posts/manual/", blog_map)
+
+
 class SiteBuildTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
 
@@ -1294,6 +1395,21 @@ class SiteBuildTests(unittest.TestCase):
         self.assertNotIn("0001-01-01", rss)
         self.assertIn("<lastBuildDate>", rss)
         self.assertEqual(rss.count("<item>"), self.expected_main_section_count())
+
+    def test_android_guide_links_to_zhihu_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.build(Path(tmp) / "public")
+            page = (
+                Path(tmp)
+                / "public"
+                / "android-guide"
+                / "01-optimization-mindset-and-checkup"
+                / "index.html"
+            ).read_text(encoding="utf-8")
+        self.assertIn(
+            "https://visionjam.github.io/zhihu-archive/articles/2097400063945348446/",
+            page,
+        )
 
     def test_android_guide_article_has_meta_and_comments(self):
         bundle = self.root / "content" / "android-guide" / "_sitetest-android"
@@ -1542,7 +1658,7 @@ class SiteBuildTests(unittest.TestCase):
         more = re.search(r'<details class="menu-more-panel">.*?</details>', home, re.S)
         self.assertIsNotNone(more)
         panel = more.group(0)
-        for path in ("ranking/", "stats/", "about/"):
+        for path in ("ranking/", "stats/", "zhihu-archive/", "about/"):
             self.assertRegex(panel, rf'href="[^"]*{path}"')
 
         primary = home[
@@ -1550,7 +1666,7 @@ class SiteBuildTests(unittest.TestCase):
                 '<li class="menu-more">'
             )
         ]
-        for path in ("ranking/", "stats/", "about/"):
+        for path in ("ranking/", "stats/", "zhihu-archive/", "about/"):
             self.assertNotIn(path, primary)
 
         self.assertIn('class="menu-more-toggle active"', about)

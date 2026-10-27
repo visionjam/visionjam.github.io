@@ -40,6 +40,12 @@ menu:
       weight: 17
       params:
         group: more
+    - identifier: zhihu-archive
+      name: 知乎归档
+      url: "https://visionjam.github.io/zhihu-archive/"
+      weight: 18
+      params:
+        group: more
     - identifier: tags
       name: 标签
       url: /tags/

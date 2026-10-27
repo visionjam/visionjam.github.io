@@ -69,6 +69,10 @@ python3 tools/check_format.py --changed  # 只检查 content/ 下改动涉及的
 - 不手写 `lastmod`，由 GitInfo 自动读取最后提交日期。
 - `android-guide` 系列额外检查：标题的「（序号）」与 `weight` 一致、`series` 字段、顶部系列说明、文末系列导航、上一篇/下一篇链接，以及栏目页目录是否列全。
 
+### 发布前审稿（基础校对）
+
+发布前只做最基础的审稿：错字、拼写、语法、标点、误引、明显病句和 Markdown 渲染问题。保留个人语言风格、网络梗、口语、脏话和情绪表达；不重写观点、不调整语气、不把口语改成书面语。拿不准的地方只标注，不擅自改。
+
 ### 一站式检查与自检
 
 ```bash
@@ -128,6 +132,15 @@ python3 tools/series.py sync --write   # 写入改动
 ## RSS
 
 `/index.xml` 只收录 `mainSections`（`posts`、`android-guide`）下的文章，并自动补 `lastBuildDate`；条数由 `services.rss.limit` 控制（当前 20）。「关于」等无日期页面不会进入订阅源。
+
+## 知乎归档互链
+
+```bash
+python tools/crossposts.py --archive-root ../zhihu-archive
+python tools/crossposts.py --archive-root ../zhihu-archive --dry-run  # 只预览
+```
+
+脚本按归一化标题（NFKC、去空白和标点）匹配同时发布在知乎「文章」里的博客文章，生成博客侧 `data/zhihu_crossposts.json` 与归档侧 `data/crossposts.json`。博客文章元信息会出现「知乎归档」链接；归档页会显示「本文同时发布于博客：<博客标题>」。`--include-answers` 可同时匹配知乎回答；歧义和未匹配会在输出里列出。发布并同步归档后运行一次，再分别提交两站。
 
 正文使用标准 Markdown。配图放在文章同目录，例如：
 

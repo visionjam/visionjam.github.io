@@ -1,0 +1,27 @@
+{
+  "/android-guide/01-optimization-mindset-and-checkup/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097400063945348446/",
+    "title": "Android 优化体验指南（一）：先建立优化观，再做体检",
+    "zhihu_id": "2097400063945348446"
+  },
+  "/android-guide/02-system-settings-and-privacy/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097400534709834385/",
+    "title": "Android 优化体验指南（二）：系统设置与隐私",
+    "zhihu_id": "2097400534709834385"
+  },
+  "/android-guide/03-background-battery-storage-smoothness/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097400645707944874/",
+    "title": "Android 优化体验指南（三）：后台、省电、存储与流畅度",
+    "zhihu_id": "2097400645707944874"
+  },
+  "/android-guide/04-advanced-adb-shizuku/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097406042594453382/",
+    "title": "Android 优化体验指南（四）：进阶——adb 与 Shizuku",
+    "zhihu_id": "2097406042594453382"
+  },
+  "/android-guide/05-recommendations/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097400787584422419/",
+    "title": "Android 优化体验指南（五）：推荐指南",
+    "zhihu_id": "2097400787584422419"
+  }
+}
