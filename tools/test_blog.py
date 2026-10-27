@@ -1519,8 +1519,9 @@ class SiteBuildTests(unittest.TestCase):
             self.assertIn(needle, stats)
         self.assertIn("stats-cell", stats)
         self.assertIn('href="/stats/"', home)
+        self.assertIn('href="/ranking/"', home)
         self.assertIn('href="/stats/"', ranking)
-        self.assertIn("统计 →", home)
+        self.assertIn('href="/ranking/"', stats)
 
 
 if __name__ == "__main__":
