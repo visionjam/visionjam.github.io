@@ -1523,6 +1523,29 @@ class SiteBuildTests(unittest.TestCase):
         self.assertIn('href="/stats/"', ranking)
         self.assertIn('href="/ranking/"', stats)
 
+    def test_header_more_menu_groups_secondary_links(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            public = Path(tmp) / "public"
+            self.build(public)
+            home = (public / "index.html").read_text(encoding="utf-8")
+            about = (public / "about" / "index.html").read_text(encoding="utf-8")
+
+        more = re.search(r'<details class="menu-more-panel">.*?</details>', home, re.S)
+        self.assertIsNotNone(more)
+        panel = more.group(0)
+        for path in ("ranking/", "stats/", "about/"):
+            self.assertRegex(panel, rf'href="[^"]*{path}"')
+
+        primary = home[
+            home.index('<ul id="menu" class="menu">') : home.index(
+                '<li class="menu-more">'
+            )
+        ]
+        for path in ("ranking/", "stats/", "about/"):
+            self.assertNotIn(path, primary)
+
+        self.assertIn('class="menu-more-toggle active"', about)
+
 
 if __name__ == "__main__":
     unittest.main()
