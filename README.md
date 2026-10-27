@@ -11,7 +11,8 @@
 - 置顶在 `data/pinned.yml` 中维护，按文件顺序显示，支持站内路径与外部链接。
 - 「文章」页（`/posts/`）保留全部分页列表；文章超过 20 篇时，主页底部显示「查看全部文章」。
 - 「排行」页（`/ranking/`）按站内点赞数排序，可按标签筛选，并显示全站统计条。
-- 「统计」页（`/stats/`）汇总发文频率、更新热力图和写作节奏；顶部菜单、首页与排行页统计条均设入口。
+- 「统计」页（`/stats/`）汇总发文频率、更新热力图和写作节奏；顶部「更多」、首页与排行页统计条均设入口。
+- 顶部导航保留「文章 / 标签 / 归档 / 搜索」；排行、统计、关于收进「更多」折叠面板，移动端同样可用。
 - 文章标题下显示发布日期、最后编辑日期（仅当与发布日期不同）、中文字数、预计阅读时长和站内赞数。最后编辑日期自动取自文章文件的最后一次 Git 提交，无需手动维护。
 
 ## 本地环境
@@ -180,6 +181,8 @@ layouts/
   _partials/comments.html          Giscus 评论/点赞
   _partials/post_meta.html         发布日期/最后编辑、字数、阅读时长、站内赞
   _partials/site_stats.html        全站统计条
+  _partials/header.html            顶部导航覆盖（「更多」折叠面板）
+  _partials/menu_link.html         菜单链接渲染
   _shortcodes/github-metrics.html  About 贡献图
 static/                              CI 生成的贡献 SVG（本地通常为空）
 new-post.bat / publish.bat       Windows 双击入口
