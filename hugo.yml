@@ -12,6 +12,10 @@ buildExpired: false
 enableEmoji: true
 pygmentsUseClasses: true
 
+services:
+  rss:
+    limit: 20
+
 pagination:
   pagerSize: 10
 

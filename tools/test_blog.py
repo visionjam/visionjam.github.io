@@ -1286,6 +1286,15 @@ class SiteBuildTests(unittest.TestCase):
         self.assertIn("github.com/visionjam/visionjam.github.io", about)
         self.assertIn("github.com/visionjam/zhihu-archive", about)
 
+    def test_rss_excludes_undated_pages_and_sets_last_build_date(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.build(Path(tmp) / "public")
+            rss = (Path(tmp) / "public" / "index.xml").read_text(encoding="utf-8")
+        self.assertNotIn("<title>关于</title>", rss)
+        self.assertNotIn("0001-01-01", rss)
+        self.assertIn("<lastBuildDate>", rss)
+        self.assertEqual(rss.count("<item>"), self.expected_main_section_count())
+
     def test_android_guide_article_has_meta_and_comments(self):
         bundle = self.root / "content" / "android-guide" / "_sitetest-android"
         bundle.mkdir(parents=True)

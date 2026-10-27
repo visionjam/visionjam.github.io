@@ -80,7 +80,7 @@ python3 tools/verify_site.py            # 线上验收；需要代理时加 --pr
 
 `check_all.py` 是发布前的总闸，CI 也直接运行它；构建后会检查 `index.json`、RSS、sitemap、内部链接，以及每篇文章页是否还有「站内赞」和评论区。`verify_site.py` 在 CI 部署后自动运行，检查首页、标签、归档、搜索、关于、统计、RSS、搜索索引和全部文章页是否 200。`check_privacy.py` 扫描全仓库文本（不只是 `content/`），工具/测试/文档里的本机路径也会被拦下。
 
-`.claude/settings.json` 现在有两类 hook：`PreToolUse`（Claude 执行 `git push` 或发布命令前拦截）和 `PostToolUse`（编辑 `content/` 下的文章后立即检查，错误会反馈给 Claude 当场修正）。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 构建前运行 `check_all.py`，部署后再跑 `verify_site.py`。
+`.claude/settings.json` 现在有两类 hook：`PreToolUse`（Claude 执行 `git push` 或发布命令前拦截）和 `PostToolUse`（编辑 `content/` 下的文章后立即检查，错误会反馈给 Claude 当场修正）。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 构建前先跑 `test_blog.py`，再运行 `check_all.py`，部署后跑 `verify_site.py`。
 
 ## 评论、站内点赞与 GitHub 贡献
 
@@ -124,6 +124,10 @@ python3 tools/series.py sync --write   # 写入改动
 ```
 
 `new` 会自动取下一个 `weight`、生成「（序号）」标题、顶部系列说明和文末导航，并更新已有文章的「共 N 篇」、上一篇/下一篇和栏目页目录。`sync` 用于手工改过系列文章后重新对齐；默认只检查，`--write` 才写入。
+
+## RSS
+
+`/index.xml` 只收录 `mainSections`（`posts`、`android-guide`）下的文章，并自动补 `lastBuildDate`；条数由 `services.rss.limit` 控制（当前 20）。「关于」等无日期页面不会进入订阅源。
 
 正文使用标准 Markdown。配图放在文章同目录，例如：
 

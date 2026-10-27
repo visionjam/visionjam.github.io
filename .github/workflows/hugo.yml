@@ -66,6 +66,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/fetch_likes.py
 
+      - name: Run tests
+        run: python3 tools/test_blog.py
+
       - name: Run full checks
         run: python3 tools/check_all.py
 
