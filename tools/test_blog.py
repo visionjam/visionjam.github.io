@@ -21,6 +21,7 @@ import crossposts
 import doctor
 import fetch_likes
 import format_hook
+import output_stats
 import series
 import verify_site
 
@@ -1322,6 +1323,95 @@ class CrosspostTests(unittest.TestCase):
 
         self.assertEqual(archive_map["999"]["blog_title"], "手动文章")
         self.assertIn("/posts/manual/", blog_map)
+
+
+class OutputStatsTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "hugo.yml").write_text(
+            'baseURL: "https://example.com/"\n\nparams:\n  mainSections:\n    - posts\n',
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write_post(self, slug, title, date, draft=False, body="正文内容"):
+        bundle = self.root / "content" / "posts" / slug
+        bundle.mkdir(parents=True)
+        (bundle / "index.md").write_text(
+            f'---\ntitle: "{title}"\ndate: {date}\ndraft: {str(draft).lower()}\n'
+            'tags: []\nsummary: "摘要"\n---\n\n'
+            f"{body}\n",
+            encoding="utf-8",
+        )
+
+    def test_count_text_matches_archive_rules(self):
+        markdown = "# 标题\n\n这是**正文**，[链接](https://example.com)，![image](./a.png)。\n"
+        self.assertEqual(output_stats.count_text(markdown), 11)
+        self.assertEqual(output_stats.count_text("```python\nprint(1)\n```"), 8)
+        self.assertEqual(output_stats.reading_minutes(0), 0)
+        self.assertEqual(output_stats.reading_minutes(1), 1)
+        self.assertEqual(output_stats.reading_minutes(400), 1)
+        self.assertEqual(output_stats.reading_minutes(401), 2)
+
+    def test_blog_items_skips_drafts_and_maps_fields(self):
+        self.write_post("a", "示例文章", "2026-01-02")
+        self.write_post("b", "草稿文章", "2026-01-03", draft=True)
+
+        items = output_stats.blog_items(self.root)
+
+        self.assertEqual([item["id"] for item in items], ["posts/a"])
+        self.assertEqual(items[0]["source"], "blog")
+        self.assertEqual(items[0]["kind"], "posts")
+        self.assertEqual(items[0]["title"], "示例文章")
+        self.assertEqual(items[0]["url"], "https://example.com/posts/a/")
+        self.assertEqual(items[0]["rel_path"], "/posts/a/")
+        self.assertEqual(items[0]["date"], "2026-01-02")
+        self.assertEqual(items[0]["words"], 4)
+        self.assertEqual(items[0]["minutes"], 1)
+        self.assertEqual(items[0]["site_likes"], 0)
+        self.assertEqual(items[0]["votes"], 0)
+        self.assertFalse(items[0]["duplicate"])
+
+    def test_blog_items_lastmod_falls_back_to_date_without_git(self):
+        self.write_post("a", "示例文章", "2026-01-02")
+
+        items = output_stats.blog_items(self.root)
+
+        self.assertEqual(items[0]["lastmod"], "2026-01-02")
+
+    def test_check_blog_reports_missing_and_stale(self):
+        self.write_post("a", "示例文章", "2026-01-02")
+        data = self.root / "data"
+        data.mkdir()
+        (data / "output_stats.json").write_text(
+            json.dumps(
+                {"version": 1, "generated_at": "2026-01-01T00:00:00+08:00", "items": []}
+            ),
+            encoding="utf-8",
+        )
+
+        issues = output_stats.check_blog(self.root)
+
+        self.assertTrue(any("不一致" in issue for issue in issues))
+        self.assertTrue(any("知乎" in issue for issue in issues))
+
+    def test_write_document_preserves_timestamp_when_unchanged(self):
+        path = self.root / "data" / "output_stats.json"
+        items = [{"source": "blog", "id": "posts/a", "date": "2026-01-02"}]
+
+        self.assertTrue(
+            output_stats.write_document(path, items, "2026-01-01T00:00:00+08:00")
+        )
+        self.assertFalse(
+            output_stats.write_document(path, items, "2026-02-01T00:00:00+08:00")
+        )
+        self.assertEqual(
+            output_stats.load_document(path)["generated_at"],
+            "2026-01-01T00:00:00+08:00",
+        )
 
 
 class SiteBuildTests(unittest.TestCase):
