@@ -1556,6 +1556,47 @@ class OutputStatsTests(unittest.TestCase):
         self.assertEqual(left["items"], right["items"])
 
 
+class PublishStatsTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "blog"
+        self.root.mkdir()
+        (self.root / "hugo.yml").write_text(
+            'baseURL: "https://example.com/"\n\nparams:\n  mainSections:\n    - posts\n',
+            encoding="utf-8",
+        )
+        bundle = self.root / "content" / "posts" / "a"
+        bundle.mkdir(parents=True)
+        (bundle / "index.md").write_text(
+            '---\ntitle: "示例"\ndate: 2026-01-02\ndraft: false\n'
+            'tags: []\nsummary: "摘要"\n---\n\n正文\n',
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_refresh_publish_stats_writes_blog_side(self):
+        self.assertTrue(blog.refresh_publish_stats(self.root, dry_run=False))
+        data = json.loads(
+            (self.root / "data" / "output_stats.json").read_text("utf-8")
+        )
+        self.assertTrue(any(item["source"] == "blog" for item in data["items"]))
+
+    def test_refresh_publish_stats_dry_run_does_not_write(self):
+        self.assertTrue(blog.refresh_publish_stats(self.root, dry_run=True))
+        self.assertFalse((self.root / "data" / "output_stats.json").exists())
+
+    def test_check_all_warns_on_stale_snapshot(self):
+        summary = check_all.Summary()
+        check_all.check_output_stats_step(self.root, summary)
+        self.assertTrue(summary.warnings)
+
+    def test_blog_workflow_refreshes_blog_side(self):
+        text = (REPO_ROOT / ".github/workflows/hugo.yml").read_text("utf-8")
+        self.assertIn("tools/output_stats.py --side blog", text)
+
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 STATS_FIXTURE = {

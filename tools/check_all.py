@@ -22,6 +22,7 @@ from pathlib import Path
 import blog
 import check_format
 import check_privacy
+import output_stats
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SITE_URL = "https://visionjam.github.io"
@@ -77,6 +78,13 @@ def check_privacy_step(root: Path, summary: Summary) -> None:
         summary.error(
             f"隐私 {finding.path}:{finding.line} [{finding.kind}] {finding.text}"
         )
+
+
+def check_output_stats_step(root: Path, summary: Summary) -> None:
+    issues = output_stats.check_blog(root)
+    summary.checked["output_stats"] = len(issues)
+    for issue in issues:
+        summary.warn(f"统计快照 {issue}")
 
 
 def build_site(root: Path, summary: Summary) -> bool:
@@ -245,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     check_format_step(root, summary)
     if not args.skip_privacy:
         check_privacy_step(root, summary)
+    check_output_stats_step(root, summary)
 
     built = False if args.skip_build else build_site(root, summary)
     if built:

@@ -66,6 +66,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/fetch_likes.py
 
+      - name: Refresh output stats (blog side)
+        run: python3 tools/output_stats.py --side blog
+
       - name: Run tests
         run: python3 tools/test_blog.py
 

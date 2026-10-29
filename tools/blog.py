@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 import check_format
+import output_stats
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SITE_URL = "https://visionjam.github.io"
@@ -420,6 +421,29 @@ def cmd_new(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     return 0
 
 
+def refresh_publish_stats(root: Path, dry_run: bool = False) -> bool:
+    root = Path(root).resolve()
+    if dry_run:
+        issues = output_stats.check_blog(root)
+        for issue in issues:
+            print(f"统计快照：{issue}")
+        return True
+    archive = root.parent / "zhihu-archive"
+    side = "both" if archive.is_dir() else "blog"
+    try:
+        counts = output_stats.refresh(
+            root, archive if side == "both" else None, side
+        )
+    except Exception as exc:  # noqa: BLE001 - 发布前统计失败要给出明确原因
+        print(f"统计快照生成失败：{exc}")
+        return False
+    print(
+        f"统计快照：博客 {counts.get('blog', 0)} 条，"
+        f"知乎 {counts.get('zhihu', 0)} 条。"
+    )
+    return True
+
+
 def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     print("=== 发布文章 ===")
     sections = main_sections(root)
@@ -465,6 +489,10 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
     else:
         print(f"格式检查：{format_result.files} 篇通过。")
 
+    if not refresh_publish_stats(root, dry_run=args.dry_run):
+        revert_flips(flips)
+        return 1
+
     if not args.skip_build and not hugo_build(root):
         revert_flips(flips)
         return 1
@@ -500,7 +528,18 @@ def cmd_publish(args: argparse.Namespace, root: Path = REPO_ROOT) -> int:
         revert_flips(flips)
         return 0
 
-    add = run_command(["git", "-C", str(root), "add", "-A", "--", *actionable])
+    add = run_command(
+        [
+            "git",
+            "-C",
+            str(root),
+            "add",
+            "-A",
+            "--",
+            *actionable,
+            "data/output_stats.json",
+        ]
+    )
     if add.returncode != 0:
         print("暂存失败：")
         print(add.stderr)
