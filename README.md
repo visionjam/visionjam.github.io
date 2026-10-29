@@ -99,10 +99,10 @@ python3 tools/verify_site.py            # 线上验收；需要代理时加 --pr
 - 站内赞就是 Giscus 主帖的 👍 数：构建前由 `tools/fetch_likes.py` 读取并写入 `data/likes.json`，页面和排行读取这份数据。点赞后要等下一次构建（每天 03:00 UTC 或下次推送）才会更新显示。当前站内赞为 0（尚未有人点赞）。
 - About 页的 GitHub 贡献日历由 [lowlighter/metrics](https://github.com/lowlighter/metrics) 在 GitHub Actions 构建时生成，每天自动刷新。
 
-### 当前状态与限制（2026-10-24）
+### 当前状态与限制（2026-10-29）
 
 - 站内赞目前为 0（尚未有人点赞）；点赞后需下一次推送或每日 03:00 UTC 构建才更新。
-- 博客没有知乎赞/浏览量；浏览量未接第三方统计。
+- 博客自身没有知乎赞/浏览量；`/stats/` 的知乎赞/评论来自归档快照；浏览量未接第三方统计。
 
 ## 写一篇新文章（手动方式）
 
