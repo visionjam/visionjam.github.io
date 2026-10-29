@@ -74,6 +74,8 @@ params:
     - posts
     - android-guide
   homeLimit: 20
+  statsSource: blog
+  statsDefaultView: blog
   defaultTheme: auto
   # 阅读时长改由 layouts/_partials/post_meta.html 按中文字符口径计算
   ShowReadingTime: false

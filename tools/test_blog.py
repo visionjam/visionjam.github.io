@@ -1556,6 +1556,90 @@ class OutputStatsTests(unittest.TestCase):
         self.assertEqual(left["items"], right["items"])
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+STATS_FIXTURE = {
+    "version": 1,
+    "generated_at": "2026-01-04T12:00:00+08:00",
+    "items": [
+        {
+            "source": "blog",
+            "kind": "posts",
+            "id": "posts/a",
+            "title": "BLOG-A",
+            "url": "https://example.com/posts/a/",
+            "rel_path": "/posts/a/",
+            "date": "2026-01-01",
+            "lastmod": "2026-01-01",
+            "words": 400,
+            "minutes": 1,
+            "votes": 0,
+            "comments": 0,
+            "site_likes": 0,
+            "duplicate": False,
+        },
+        {
+            "source": "zhihu",
+            "kind": "answers",
+            "id": "z1",
+            "title": "ZHIHU-B",
+            "url": "https://example.com/zhihu-archive/answers/z1/",
+            "rel_path": "/answers/z1/",
+            "date": "2026-01-02",
+            "lastmod": "2026-01-02",
+            "words": 400,
+            "minutes": 1,
+            "votes": 7,
+            "comments": 2,
+            "site_likes": 0,
+            "duplicate": False,
+        },
+        {
+            "source": "zhihu",
+            "kind": "answers",
+            "id": "z2",
+            "title": "ZHIHU-C",
+            "url": "https://example.com/zhihu-archive/answers/z2/",
+            "rel_path": "/answers/z2/",
+            "date": "2026-01-03",
+            "lastmod": "2026-01-04",
+            "words": 400,
+            "minutes": 1,
+            "votes": 5,
+            "comments": 1,
+            "site_likes": 0,
+            "duplicate": True,
+        },
+    ],
+}
+
+
+@contextlib.contextmanager
+def output_stats_fixture(data, likes=None):
+    stats_path = REPO_ROOT / "data" / "output_stats.json"
+    likes_path = REPO_ROOT / "data" / "likes.json"
+    stats_backup = stats_path.read_bytes() if stats_path.exists() else None
+    likes_backup = likes_path.read_bytes() if likes_path.exists() else None
+    try:
+        if data is None:
+            stats_path.unlink(missing_ok=True)
+        else:
+            stats_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        if likes is not None:
+            likes_path.write_text(
+                json.dumps(likes, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        yield
+    finally:
+        for path, backup in ((stats_path, stats_backup), (likes_path, likes_backup)):
+            if backup is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(backup)
+
+
 class SiteBuildTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
 
@@ -1879,6 +1963,72 @@ class SiteBuildTests(unittest.TestCase):
         self.assertIn('href="/ranking/"', home)
         self.assertIn('href="/stats/"', ranking)
         self.assertIn('href="/ranking/"', stats)
+
+    def test_stats_page_has_three_views_and_defaults_to_blog(self):
+        with output_stats_fixture(STATS_FIXTURE):
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                html = (Path(tmp) / "public" / "stats" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+        for view in ("all", "blog", "zhihu"):
+            self.assertIn(f'data-stats-tab="{view}"', html)
+            self.assertIn(f'data-stats-panel="{view}"', html)
+        self.assertIn('data-stats-default="blog"', html)
+        blog_tag = re.search(
+            r'<section[^>]*data-stats-panel="blog"[^>]*>', html
+        ).group(0)
+        all_tag = re.search(
+            r'<section[^>]*data-stats-panel="all"[^>]*>', html
+        ).group(0)
+        self.assertNotIn("hidden", blog_tag)
+        self.assertIn("hidden", all_tag)
+        self.assertIn("history.replaceState", html)
+
+    def test_all_view_dedupes_output_but_keeps_engagement(self):
+        likes = {"items": {"/posts/a/": {"likes": 9}}}
+        with output_stats_fixture(STATS_FIXTURE, likes):
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                html = (Path(tmp) / "public" / "stats" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+        all_panel = re.search(
+            r'data-stats-panel="all"(.*?)data-stats-panel="blog"', html, re.S
+        ).group(1)
+        blog_panel = re.search(
+            r'data-stats-panel="blog"(.*?)data-stats-panel="zhihu"', html, re.S
+        ).group(1)
+        zhihu_panel = re.search(
+            r'data-stats-panel="zhihu"(.*)', html, re.S
+        ).group(1)
+
+        self.assertIn("<dt>收录</dt><dd>2 篇</dd>", all_panel)
+        self.assertIn("<dt>总字数</dt><dd>800</dd>", all_panel)
+        self.assertIn("<dt>知乎赞</dt><dd>12</dd>", all_panel)
+        self.assertIn("<dt>评论</dt><dd>3</dd>", all_panel)
+        self.assertIn("<dt>站内赞</dt><dd>9</dd>", all_panel)
+        self.assertIn("跨站重复 1 篇已合并", all_panel)
+        self.assertNotIn("ZHIHU-C", all_panel)
+        self.assertIn("<dt>收录</dt><dd>2 篇</dd>", zhihu_panel)
+        self.assertIn("<dt>总字数</dt><dd>800</dd>", zhihu_panel)
+        self.assertIn("<dt>知乎赞</dt><dd>12</dd>", zhihu_panel)
+        self.assertIn("ZHIHU-C", zhihu_panel)
+        self.assertNotIn("<dt>知乎赞</dt>", blog_panel)
+        self.assertIn("<dt>站内赞</dt><dd>9</dd>", blog_panel)
+
+    def test_stats_page_survives_missing_snapshot(self):
+        with output_stats_fixture(None):
+            with tempfile.TemporaryDirectory() as tmp:
+                self.build(Path(tmp) / "public")
+                html = (Path(tmp) / "public" / "stats" / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+        self.assertIn('data-stats-panel="zhihu"', html)
+        self.assertIn("暂无发布记录", html)
 
     def test_header_more_menu_groups_secondary_links(self):
         with tempfile.TemporaryDirectory() as tmp:
