@@ -1413,6 +1413,148 @@ class OutputStatsTests(unittest.TestCase):
             "2026-01-01T00:00:00+08:00",
         )
 
+    def make_archive(self):
+        archive = self.root / "zhihu-archive"
+        archive.mkdir(parents=True)
+        (archive / "hugo.yml").write_text(
+            'baseURL: "https://example.com/zhihu-archive/"\n', encoding="utf-8"
+        )
+        data = archive / "data"
+        data.mkdir(parents=True)
+        (data / "zhihu_stats.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "generated_at": "2026-01-01T00:00:00+08:00",
+                    "totals": {
+                        "items": 2,
+                        "words": 600,
+                        "votes": 7,
+                        "comments": 2,
+                        "by_kind": {"answers": 2},
+                    },
+                    "items": {
+                        "answers:z1": {
+                            "kind": "answers",
+                            "id": "z1",
+                            "title": "知乎一",
+                            "url": "https://www.zhihu.com/x",
+                            "rel_path": "/answers/z1/",
+                            "created": "2026-01-02",
+                            "deleted": False,
+                            "voteup_count": 7,
+                            "comment_count": 2,
+                            "word_count": 400,
+                            "reading_minutes": 1,
+                        },
+                        "answers:z2": {
+                            "kind": "answers",
+                            "id": "z2",
+                            "title": "知乎二",
+                            "url": "https://www.zhihu.com/y",
+                            "rel_path": "/answers/z2/",
+                            "created": "2026-01-03",
+                            "deleted": False,
+                            "voteup_count": 0,
+                            "comment_count": 0,
+                            "word_count": 200,
+                            "reading_minutes": 1,
+                        },
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (data / "crossposts.json").write_text(
+            json.dumps(
+                {
+                    "z1": {
+                        "url": "https://example.com/posts/a/",
+                        "title": "知乎一",
+                        "blog_title": "示例文章",
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        (data / "likes.json").write_text(
+            json.dumps({"items": {"/answers/z1/": {"likes": 4, "url": ""}}}),
+            encoding="utf-8",
+        )
+        for slug, lastmod in (("z1", "2026-01-05"), ("z2", None)):
+            bundle = archive / "content" / "answers" / slug
+            bundle.mkdir(parents=True)
+            front = f'---\ntitle: "知乎{slug}"\ndate: 2026-01-02\n'
+            if lastmod:
+                front += f"lastmod: {lastmod}\n"
+            front += "---\n\n正文\n"
+            (bundle / "index.md").write_text(front, encoding="utf-8")
+        return archive
+
+    def test_zhihu_items_maps_fields_and_duplicates(self):
+        archive = self.make_archive()
+
+        items = output_stats.zhihu_items(
+            archive, blog_urls={"https://example.com/posts/a/"}
+        )
+        by_id = {item["id"]: item for item in items}
+
+        self.assertEqual(by_id["z1"]["url"], "https://example.com/zhihu-archive/answers/z1/")
+        self.assertEqual(by_id["z1"]["lastmod"], "2026-01-05")
+        self.assertEqual(by_id["z2"]["lastmod"], "2026-01-03")
+        self.assertEqual(by_id["z1"]["words"], 400)
+        self.assertEqual(by_id["z1"]["minutes"], 1)
+        self.assertEqual(by_id["z1"]["votes"], 7)
+        self.assertEqual(by_id["z1"]["comments"], 2)
+        self.assertEqual(by_id["z1"]["site_likes"], 4)
+        self.assertTrue(by_id["z1"]["duplicate"])
+        self.assertFalse(by_id["z2"]["duplicate"])
+
+    def test_duplicate_requires_existing_blog_item(self):
+        archive = self.make_archive()
+
+        items = output_stats.zhihu_items(archive, blog_urls=set())
+
+        self.assertFalse(any(item["duplicate"] for item in items))
+
+    def test_refresh_side_preserves_other_source(self):
+        archive = self.make_archive()
+        self.write_post("a", "示例文章", "2026-01-02")
+        path = self.root / "data" / "output_stats.json"
+        output_stats.write_document(
+            path,
+            [
+                {
+                    "source": "blog",
+                    "id": "posts/old",
+                    "url": "https://example.com/posts/a/",
+                    "date": "2026-01-01",
+                }
+            ],
+            "2026-01-01T00:00:00+08:00",
+        )
+
+        counts = output_stats.refresh(self.root, archive, "zhihu")
+        data = output_stats.load_document(path)
+        by_id = {item["id"]: item for item in data["items"]}
+
+        self.assertEqual(counts["zhihu"], 2)
+        self.assertTrue(any(item["source"] == "blog" for item in data["items"]))
+        self.assertTrue(by_id["z1"]["duplicate"])
+
+    def test_refresh_both_writes_identical_items(self):
+        archive = self.make_archive()
+        self.write_post("a", "示例文章", "2026-01-02")
+
+        counts = output_stats.refresh(self.root, archive, "both")
+        left = output_stats.load_document(self.root / "data" / "output_stats.json")
+        right = output_stats.load_document(archive / "data" / "output_stats.json")
+
+        self.assertEqual(counts, {"blog": 1, "zhihu": 2})
+        self.assertEqual(left["items"], right["items"])
+
 
 class SiteBuildTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
