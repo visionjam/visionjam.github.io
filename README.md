@@ -11,7 +11,7 @@
 - 置顶在 `data/pinned.yml` 中维护，按文件顺序显示，支持站内路径与外部链接。
 - 「文章」页（`/posts/`）保留全部分页列表；文章超过 20 篇时，主页底部显示「查看全部文章」。
 - 「排行」页（`/ranking/`）按站内点赞数排序，可按标签筛选，并显示全站统计条。
-- 「统计」页（`/stats/`）汇总发文频率、更新热力图和写作节奏；顶部「更多」、首页与排行页统计条均设入口。
+- 「统计」页（`/stats/`）提供「全部 / 博客 / 知乎」三个视图，博客站默认「博客」；「全部」合并两站输出并去掉跨站重复。顶部「更多」、首页与排行页统计条均设入口。
 - 顶部导航保留「文章 / 标签 / 归档 / 搜索」；排行、统计、关于收进「更多」折叠面板，移动端同样可用。
 - 文章标题下显示发布日期、最后编辑日期（仅当与发布日期不同）、中文字数、预计阅读时长和站内赞数。最后编辑日期自动取自文章文件的最后一次 Git 提交，无需手动维护。
 
@@ -85,6 +85,13 @@ python3 tools/verify_site.py            # 线上验收；需要代理时加 --pr
 `check_all.py` 是发布前的总闸，CI 也直接运行它；构建后会检查 `index.json`、RSS、sitemap、内部链接，以及每篇文章页是否还有「站内赞」和评论区。`verify_site.py` 在 CI 部署后自动运行，检查首页、标签、归档、搜索、关于、统计、RSS、搜索索引和全部文章页是否 200。`check_privacy.py` 扫描全仓库文本（不只是 `content/`），工具/测试/文档里的本机路径也会被拦下。
 
 `.claude/settings.json` 现在有两类 hook：`PreToolUse`（Claude 执行 `git push` 或发布命令前拦截）和 `PostToolUse`（编辑 `content/` 下的文章后立即检查，错误会反馈给 Claude 当场修正）。手动双击 `publish.bat` 时，检查由 `blog.py` 内置流程完成。GitHub Actions 构建前先跑 `test_blog.py`，再运行 `check_all.py`，部署后跑 `verify_site.py`。
+
+### 跨站统计快照
+
+- `/stats/` 三个视图的数据来自 `data/output_stats.json`，文件同时包含博客与知乎归档条目；博客侧由 `tools/output_stats.py` 生成，归档侧由归档仓库的 `tools/refresh_output_stats.py` 维护。
+- `python tools/output_stats.py` 刷新两份快照；`--side blog|zhihu|both` 只刷新一侧；`--check` 校验博客侧；`--dry-run` 只统计不写文件。
+- `blog.py publish` 和博客 CI 会在构建前刷新博客侧；另一边以最后一次本地发布/同步写入的快照为准，可能滞后一个发布周期。
+- 统计页字数与归档一致（去掉 Markdown 标记后的非空白字符），与首页统计条的 Hugo 口径略有差异。
 
 ## 评论、站内点赞与 GitHub 贡献
 
