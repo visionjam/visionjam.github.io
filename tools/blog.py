@@ -429,7 +429,11 @@ def refresh_publish_stats(root: Path, dry_run: bool = False) -> bool:
             print(f"统计快照：{issue}")
         return True
     archive = root.parent / "zhihu-archive"
-    side = "both" if archive.is_dir() else "blog"
+    side = (
+        "both"
+        if (archive / "data" / "zhihu_stats.json").is_file()
+        else "blog"
+    )
     try:
         counts = output_stats.refresh(
             root, archive if side == "both" else None, side

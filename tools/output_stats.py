@@ -11,6 +11,7 @@ import subprocess
 from datetime import datetime
 from html import unescape
 from pathlib import Path
+from urllib.parse import urlparse
 
 import check_format
 
@@ -56,6 +57,18 @@ def _load_json(path: Path) -> dict:
 
 def load_document(path: Path) -> dict:
     return _load_json(Path(path))
+
+
+def _load_required_json(path: Path) -> dict:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} 不是 JSON 对象")
+    return data
+
+
+def _public_path(base_url: str, rel_path: str) -> str:
+    prefix = urlparse(base_url).path.rstrip("/") if base_url else ""
+    return prefix + rel_path
 
 
 def _base_url(root: Path) -> str:
@@ -178,7 +191,7 @@ def blog_items(root: Path) -> list[dict]:
                 "minutes": reading_minutes(words),
                 "votes": 0,
                 "comments": 0,
-                "site_likes": _like_count(likes, rel_path),
+                "site_likes": _like_count(likes, _public_path(base_url, rel_path)),
                 "duplicate": False,
             }
         )
@@ -189,7 +202,9 @@ def zhihu_items(
     archive_root: Path, blog_urls: set[str] | None = None
 ) -> list[dict]:
     root = Path(archive_root).resolve()
-    raw_items = _load_json(root / "data" / "zhihu_stats.json").get("items") or {}
+    raw_items = _load_required_json(root / "data" / "zhihu_stats.json").get(
+        "items"
+    ) or {}
     if isinstance(raw_items, dict):
         entries = list(raw_items.values())
     elif isinstance(raw_items, list):
@@ -235,7 +250,7 @@ def zhihu_items(
                 "minutes": _int(entry.get("reading_minutes")),
                 "votes": _int(entry.get("voteup_count")),
                 "comments": _int(entry.get("comment_count")),
-                "site_likes": _like_count(likes, rel_path),
+                "site_likes": _like_count(likes, _public_path(base_url, rel_path)),
                 "duplicate": duplicate,
             }
         )
@@ -290,6 +305,11 @@ def refresh(
             print("未找到归档仓库，只刷新博客侧。")
         else:
             new_zhihu = zhihu_items(archive_path, _blog_urls(items))
+            existing_zhihu = [
+                item for item in items if item.get("source") == "zhihu"
+            ]
+            if not new_zhihu and existing_zhihu:
+                raise RuntimeError("知乎统计为空，拒绝覆盖现有快照")
             counts["zhihu"] = len(new_zhihu)
             items = merge_source(items, new_zhihu, "zhihu")
             if side == "both":
@@ -394,12 +414,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.side in ("blog", "both"):
             counts["blog"] = len(blog_items(root))
         if args.side in ("zhihu", "both"):
-            if archive_root.is_dir():
+            stats_file = archive_root / "data" / "zhihu_stats.json"
+            if stats_file.is_file():
                 counts["zhihu"] = len(
                     zhihu_items(archive_root, _blog_urls(existing))
                 )
             elif args.side == "zhihu":
-                print(f"错误：找不到归档仓库：{archive_root}")
+                print(f"错误：找不到归档统计：{stats_file}")
                 return 2
         print(
             f"博客 {counts['blog']} 条，知乎 {counts['zhihu']} 条（dry run，未写入）"
@@ -407,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         counts = refresh(root, archive_root, args.side)
-    except FileNotFoundError as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"错误：{exc}")
         return 2
     print(

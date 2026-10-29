@@ -1480,7 +1480,9 @@ class OutputStatsTests(unittest.TestCase):
             encoding="utf-8",
         )
         (data / "likes.json").write_text(
-            json.dumps({"items": {"/answers/z1/": {"likes": 4, "url": ""}}}),
+            json.dumps(
+                {"items": {"/zhihu-archive/answers/z1/": {"likes": 4, "url": ""}}}
+            ),
             encoding="utf-8",
         )
         for slug, lastmod in (("z1", "2026-01-05"), ("z2", None)):
@@ -1555,6 +1557,35 @@ class OutputStatsTests(unittest.TestCase):
         self.assertEqual(counts, {"blog": 1, "zhihu": 2})
         self.assertEqual(left["items"], right["items"])
 
+    def test_zhihu_items_requires_stats_file(self):
+        archive = self.root / "zhihu-archive"
+        (archive / "data").mkdir(parents=True)
+
+        with self.assertRaises(FileNotFoundError):
+            output_stats.zhihu_items(archive, set())
+
+    def test_refresh_refuses_empty_zhihu_replacement(self):
+        archive = self.root / "zhihu-archive"
+        archive.mkdir(parents=True)
+        (archive / "hugo.yml").write_text(
+            'baseURL: "https://example.com/zhihu-archive/"\n', encoding="utf-8"
+        )
+        (archive / "data").mkdir(parents=True)
+        (archive / "data" / "zhihu_stats.json").write_text(
+            json.dumps({"version": 1, "items": {}}), encoding="utf-8"
+        )
+        (archive / "data" / "crossposts.json").write_text("{}", encoding="utf-8")
+        (archive / "data" / "likes.json").write_text('{"items": {}}', encoding="utf-8")
+        path = self.root / "data" / "output_stats.json"
+        output_stats.write_document(
+            path,
+            [{"source": "zhihu", "id": "z1", "date": "2026-01-01"}],
+            "2026-01-01T00:00:00+08:00",
+        )
+
+        with self.assertRaises(RuntimeError):
+            output_stats.refresh(self.root, archive, "zhihu")
+
 
 class PublishStatsTests(unittest.TestCase):
     def setUp(self):
@@ -1591,6 +1622,20 @@ class PublishStatsTests(unittest.TestCase):
         summary = check_all.Summary()
         check_all.check_output_stats_step(self.root, summary)
         self.assertTrue(summary.warnings)
+
+    def test_refresh_publish_stats_preserves_zhihu_when_archive_incomplete(self):
+        archive = self.root.parent / "zhihu-archive"
+        (archive / "data").mkdir(parents=True)
+        path = self.root / "data" / "output_stats.json"
+        output_stats.write_document(
+            path,
+            [{"source": "zhihu", "id": "z1", "date": "2026-01-01"}],
+            "2026-01-01T00:00:00+08:00",
+        )
+
+        self.assertTrue(blog.refresh_publish_stats(self.root))
+        data = json.loads(path.read_text("utf-8"))
+        self.assertTrue(any(item["source"] == "zhihu" for item in data["items"]))
 
     def test_blog_workflow_refreshes_blog_side(self):
         text = (REPO_ROOT / ".github/workflows/hugo.yml").read_text("utf-8")
