@@ -23,5 +23,10 @@
     "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2097400787584422419/",
     "title": "Android 优化体验指南（五）：推荐指南",
     "zhihu_id": "2097400787584422419"
+  },
+  "/posts/how-i-use-asrtts/": {
+    "archive_url": "https://visionjam.github.io/zhihu-archive/articles/2107490922191766455/",
+    "title": "语音和文字：我的 ASR和TTS 使用记",
+    "zhihu_id": "2107490922191766455"
   }
 }
